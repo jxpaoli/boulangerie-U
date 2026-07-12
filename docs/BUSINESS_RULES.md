@@ -1,0 +1,226 @@
+# Règles métier — Point Chaud (V1)
+
+> Ce document fait foi sur le comportement attendu de l'application.
+> Il est la traduction du CCTP, resserré sur le périmètre **V1** décidé avec la responsable.
+
+## 0. Principe fondateur : on ne jette jamais rien
+
+Le stock ne repose **jamais** sur une valeur qu'on écrase. Il repose sur un
+**journal de mouvements non destructif** (`stock_movements`). Chaque événement
+(entrée, sortie, correction, inventaire) crée **une ligne** ; on ne modifie ni ne
+supprime jamais une ligne existante.
+
+- Corriger une erreur = écrire un **mouvement compensatoire**, pas effacer.
+- Le stock d'un produit = **somme des quantités signées** de ses mouvements.
+- Tout reste consultable pour toujours (traçabilité + apprentissage de la conso).
+
+## 1. Périmètre : uniquement le congélateur
+
+L'application gère **uniquement les produits présents dans le congélateur**.
+
+Dès qu'un produit **sort du congélateur**, il est considéré comme **consommé**,
+quelle que soit sa destination (cuisson, décongélation, vente, perte, casse…).
+
+L'application **ne suit pas** : ventes clients, caisse, produits cuits/décongelés,
+invendus, chiffre d'affaires, tables, recettes. **Aucun module de caisse.**
+
+## 2. Les quatre stocks (jamais mélangés dans l'UI)
+
+| Stock | Définition | Source |
+|---|---|---|
+| **Physique / théorique** | Ce qui est réellement au congélo | Somme des `stock_movements` |
+| **Attendu** | Commandé mais pas encore réceptionné | `purchase_order_lines` non reçues |
+| **Projeté à une date** | Estimation future | physique − conso prévue + réceptions attendues |
+
+> En V1 « physique » et « théorique » sont confondus : le théorique **est** notre
+> meilleure estimation du physique, recalé par les inventaires.
+
+### Formule du stock théorique
+
+```
+théorique = inventaire_initial
+          + réceptions acceptées
+          + corrections positives
+          − sorties du congélateur
+          − corrections négatives
+```
+
+Règles absolues :
+- Une **commande passée mais non réceptionnée** n'augmente **jamais** le stock.
+- Une **livraison arrivée mais non contrôlée** n'augmente **jamais** le stock.
+- **Seule** une quantité **explicitement acceptée** à la réception crée une entrée.
+
+## 3. Unité de stock ≠ conditionnement
+
+Le stock se compte en **unités de stock** (pièces). La commande se passe en
+**conditionnements fournisseur** (cartons, sachets, plaques).
+
+- `supplier_products.pack_size` = nombre d'unités de stock par conditionnement.
+- Le stock est **stocké** en unités ; il est **affiché** aussi en conditionnements.
+  - Ex. 138 pièces, carton de 60 → « 2 cartons et 18 pièces ».
+- La commande est **calculée** en unités puis **convertie** en conditionnements.
+
+## 4. Conso prévisionnelle : par produit et par jour de la semaine
+
+La consommation est estimée **par jour de la semaine** (lundi ≠ samedi).
+
+- V1 : saisie **manuelle** d'un profil 7 jours par produit (`forecast_settings`).
+- L'historique des sorties est conservé dès le départ → l'apprentissage automatique
+  (moyenne par jour de semaine sur une fenêtre glissante) pourra être activé plus tard
+  **sans migration** (les données sont là).
+- Un ajustement ponctuel (`forecast_adjustments`) peut multiplier un jour donné
+  (ex. événement +30 %). Non prioritaire en V1 mais prévu dans le modèle.
+
+## 5. Moteur de dates commande → livraison
+
+Chaque fournisseur a des **jours de commande** et une règle de livraison.
+
+Règle V1 (simple, sans jours fériés automatiques) :
+- `order_days` : jours de la semaine où l'on peut commander (0=lundi … 6=dimanche).
+- `cutoff_time` : heure limite de commande (fuseau **Europe/Paris**).
+- Livraison, selon `delivery_mode` :
+  - `lead_days` : livraison à J+N (N jours **calendaires** ou **ouvrés**, configurable) ;
+  - `mapping` : correspondance explicite jour de commande → jour de livraison
+    (ex. jeudi → vendredi de la semaine suivante).
+- `no_weekend_delivery` : pas de livraison sam/dim → report au prochain jour ouvré.
+
+**Hors V1 (géré à la main)** : fermetures fournisseur, jours fériés, saisonnalité,
+exceptions ponctuelles. Le modèle de données garde la place (`supplier_closures`,
+`supplier_delivery_exceptions`) mais le moteur V1 ne les applique pas.
+
+### Informations calculées par fournisseur
+- prochaine date de commande possible + heure limite ;
+- date de livraison de cette commande (**D1**) ;
+- commande possible suivante (**C2**) et sa livraison (**D2**) ;
+- **période à couvrir** = de D1 à D2.
+
+Toutes les dates sont calculées en `Europe/Paris`.
+
+## 6. Proposition de commande
+
+Pour chaque produit commandable chez le fournisseur du jour :
+
+```
+stock_projeté_avant_D1 = stock_actuel − conso(maintenant → D1) + réceptions_avant_D1
+besoin_cible_à_D1      = conso(D1 → D2) + stock_de_sécurité
+quantité_brute         = max(0, besoin_cible_à_D1 − stock_projeté_avant_D1)
+```
+
+Puis conversion en commande :
+1. convertir en unité de commande du fournisseur ;
+2. **arrondir au conditionnement supérieur** ;
+3. respecter la **quantité minimale** commandable ;
+4. respecter le **multiple obligatoire** ;
+5. **plafonner à la capacité congélo** du produit (voir §7) ;
+6. ajustable **manuellement** par la responsable.
+
+**Tout arrondi est expliqué à l'utilisateur** (brut → arrondi → final).
+
+### Alerte rupture avant livraison (§12.3 CCTP)
+Si `stock_actuel < conso(maintenant → D1)` : afficher **« Risque de rupture avant
+la prochaine livraison »**. Cette alerte n'est **pas** masquée par la commande
+proposée (la commande n'arrivera pas assez tôt).
+
+## 7. Plafond congélo (besoin explicite de la responsable)
+
+Chaque produit a une **capacité max de stockage** (`products.max_stock`, en unités
+ou en conditionnements). La commande proposée ne doit **jamais** faire dépasser :
+
+```
+commande_max = max(0, capacité_max − stock_projeté_avant_D1)
+commande     = min(commande_calculée, commande_max)
+```
+
+Si la couverture souhaitée dépasse la capacité → **commande plafonnée** + alerte
+« Il faudrait N cartons pour couvrir, mais le congélo n'en accepte que M ».
+
+## 8. Contrôle visuel avant validation
+
+Avant de valider une commande, un **contrôle visuel rapide** (pas un inventaire)
+recale l'estimation. La responsable indique, par produit, ce qu'il reste **à la
+louche** : **cartons pleins** + **carton entamé** (affiché en pièces : ¼ d'un carton
+de 24 = 6, pas en %).
+
+- Une appréciation approximative **ne modifie pas** automatiquement le stock.
+- Elle est conservée avec la commande, alerte si écart, et permet d'ajuster la quantité.
+- Un **comptage exact** peut donner une **correction de stock**, mais uniquement
+  après confirmation explicite (= mini-inventaire).
+- Une commande n'est validable que si les lignes requises ont un statut de contrôle
+  (ou qu'un responsable a explicitement ignoré le contrôle avec un motif).
+
+## 9. Cycle de vie d'une commande (V1)
+
+```
+brouillon_calculé → contrôle_visuel → prête → validée → commandée → reçue → clôturée
+                                                                   ↘ annulée
+```
+
+- **brouillon / contrôle / validée** : aucun effet sur le stock.
+- **commandée** : quantité visible en **stock attendu** uniquement. On enregistre
+  date/heure d'envoi, utilisateur, canal (**téléphone** en V1), réf éventuelle.
+- On conserve toujours : quantité **proposée** par le système, quantité **après
+  contrôle**, quantité **finale** commandée, motif de modification, qui/quand.
+- **Note libre par ligne** de commande (suit la ligne jusqu'à la réception).
+- **Export** : bon de commande PDF + récap texte copiable (pour l'appel téléphonique).
+
+## 10. Réception (simplifiée V1 — pas de reliquat)
+
+> Décision : « ce qui compte, c'est ce qui est vraiment rentré. Reliquat ou annulé,
+> on s'en fout. »
+
+- On ouvre la commande ; les lignes sont **pré-remplies** avec la quantité commandée.
+- Cas normal : **« Livraison conforme »** en un geste → tout entre en stock.
+- Ligne différente : on **baisse la quantité acceptée** à ce qui est réellement rentré.
+- **Seule la quantité acceptée** génère un mouvement `reception` (entrée en stock).
+- **Note libre par ligne** (« abîmé », « pas livré », « rupture fournisseur »…).
+- **Pas de reliquat** : le manquant n'entre pas en stock. Comme le stock reste bas,
+  **la prochaine proposition de commande le re-propose automatiquement** (auto-réparation).
+- **Une commande = une réception, puis clôturée.** Pas de 2ᵉ réception rattachée.
+  Un carton qui arrive plus tard → correction de stock manuelle (cas rare).
+
+La réception est une **transaction unique** : création de la réception + lignes +
+mouvements de stock + statut de commande + audit. **Idempotente** (protégée contre
+le double-clic via une clé d'idempotence).
+
+## 11. Inventaire re-faisable à volonté
+
+L'inventaire n'est **pas** qu'un démarrage. Il est **refaisable à tout moment**
+(complet ou sur quelques produits) et **recale le stock au réel** :
+
+```
+Pour chaque produit compté :
+  écart = compté − théorique
+  si écart ≠ 0 → mouvement de correction (± écart)  ← jamais d'écrasement
+  théorique devient = compté
+```
+
+L'écart est **tracé et conservé** (historique des dérives → apprentissage, détection
+des sorties oubliées). L'inventaire initial est un cas particulier (mouvements de type
+`initial`).
+
+## 12. Sortie du congélateur (le cœur, temps réel)
+
+- Extrêmement rapide : chercher/scanner un produit → quantité → confirmer.
+- Chaque sortie **diminue immédiatement** le stock théorique.
+- Favoris, dernières références, pavé numérique mobile, quantités fréquentes,
+  correction de la **dernière** saisie (selon droits).
+- **Atomique et idempotente** : deux utilisateurs peuvent sortir en même temps sans
+  qu'une sortie en écrase une autre (clé d'idempotence + transaction serveur).
+- **Stock négatif interdit par défaut.** Un responsable peut forcer avec motif
+  obligatoire + journalisation + alerte d'inventaire.
+
+## 13. Rôles (V1 = mono-utilisateur, base prête pour 3 rôles)
+
+Le modèle de données porte 3 rôles (`admin`, `manager`, `operator`) et un `site_id`,
+mais l'UI V1 fonctionne pour une seule responsable. Les contrôles de droits ne sont
+**jamais uniquement graphiques** : ils sont appliqués aussi en **RLS** et dans les
+**fonctions PostgreSQL**.
+
+## 14. Hors périmètre V1 (repoussé, place gardée en base)
+
+Reliquats · jours fériés/fermetures automatiques · saisonnalité/événements ·
+lots & DLC · produits de remplacement · inventaire tournant intelligent ·
+3 rôles dans l'UI · multi-site dans l'UI · temps réel multi-terminal ·
+mode hors-ligne PWA avec file de synchro · statistiques poussées.
+
+Chacun se **branche** sur le socle V1 sans le réécrire.
