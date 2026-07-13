@@ -246,12 +246,28 @@ utilisateur connecté). Pour une préparation, chaque ligne partage le même hor
 auteur et le même `prep_batch_id`. Rien n'est modifiable après coup (journal non destructif §0) ;
 l'historique montre « qui a sorti quoi, quand ».
 
-## 13. Rôles (V1 = mono-utilisateur, base prête pour 3 rôles)
+## 13. Rôles et connexion (multi-personnes, une seule en service à la fois)
 
-Le modèle de données porte 3 rôles (`admin`, `manager`, `operator`) et un `site_id`,
-mais l'UI V1 fonctionne pour une seule responsable. Les contrôles de droits ne sont
-**jamais uniquement graphiques** : ils sont appliqués aussi en **RLS** et dans les
-**fonctions PostgreSQL**.
+**Réalité terrain** : une seule personne à la boulangerie à un instant donné, mais elle
+**change selon le service** (une le matin, une l'après-midi). Chaque personne a son compte.
+
+**Connexion par service** :
+- Sur le **téléphone perso** de la personne : session persistante (reste connectée).
+- Sur le **pad partagé** de la boulangerie : on se connecte en début de service, et un
+  bouton **« changer d'utilisateur »** permet la bascule à la relève.
+- **Toutes les actions du service sont attribuées à la personne connectée** — la
+  traçabilité « qui a fait quoi » est automatique, sans rien saisir (§12bis).
+
+**Deux rôles en V1** (le schéma sait en exprimer plus) :
+
+| Rôle | Peut faire |
+|---|---|
+| **admin** (propriétaire) | Tout, **y compris la configuration** : produits, familles, prépas, fournisseurs, calendriers, réglages, **gestion des comptes**. |
+| **staff** (personne en service) | **Tout le cycle quotidien** : sorties, exécuter les préparations, préparer / valider / passer les commandes, réceptionner les livraisons, inventaire. **Pas la configuration.** |
+
+Les contrôles de droits ne sont **jamais uniquement graphiques** : ils sont appliqués aussi
+en **RLS** et dans les **fonctions PostgreSQL**. Un `site_id` est porté partout pour permettre
+le multi-boutique plus tard (une seule boutique en V1).
 
 ## 14. Hors périmètre V1 (repoussé, place gardée en base)
 

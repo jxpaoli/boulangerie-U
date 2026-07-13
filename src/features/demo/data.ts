@@ -4,6 +4,8 @@
  * Voir docs/ARCHITECTURE.md (couche services, bascule mock/réel).
  */
 
+import type { SupplierCalendar } from '@/lib/orderCalendar'
+
 export interface DemoSupplier {
   id: string
   name: string
@@ -11,6 +13,7 @@ export interface DemoSupplier {
   orderDays: number[] // 0=lundi
   deliveryLabel: string
   dueToday: boolean
+  calendar: SupplierCalendar
 }
 
 export interface DemoProduct {
@@ -37,6 +40,11 @@ export const demoSuppliers: DemoSupplier[] = [
     orderDays: [0, 1, 2, 3, 4],
     deliveryLabel: 'Lun · Mar · Mer · Jeu · Ven',
     dueToday: true,
+    calendar: {
+      orderDays: [0, 1, 2, 3, 4],
+      cutoff: '11:00',
+      delivery: { mode: 'lead', leadDays: 1, leadKind: 'calendar', noWeekendDelivery: true },
+    },
   },
   {
     id: 's-davigel',
@@ -45,6 +53,11 @@ export const demoSuppliers: DemoSupplier[] = [
     orderDays: [0, 2, 4],
     deliveryLabel: 'Lun · Mer · Ven',
     dueToday: true,
+    calendar: {
+      orderDays: [0, 2, 4],
+      cutoff: '10:00',
+      delivery: { mode: 'lead', leadDays: 1, leadKind: 'calendar', noWeekendDelivery: true },
+    },
   },
   {
     id: 's-bridor',
@@ -53,6 +66,11 @@ export const demoSuppliers: DemoSupplier[] = [
     orderDays: [1, 3],
     deliveryLabel: 'Mar · Jeu',
     dueToday: false,
+    calendar: {
+      orderDays: [1, 3],
+      cutoff: '12:00',
+      delivery: { mode: 'lead', leadDays: 2, leadKind: 'business' },
+    },
   },
 ]
 

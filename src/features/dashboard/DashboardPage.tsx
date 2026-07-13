@@ -4,6 +4,7 @@ import { AppShell } from '@/components/AppShell'
 import { Card, SectionTitle, StatTile, Badge } from '@/components/ui'
 import { demoProducts, demoSuppliers } from '@/features/demo/data'
 import { formatDayLong, formatPacks } from '@/lib/format'
+import { supplierPlan, civilToDate } from '@/lib/orderCalendar'
 
 // Démo : « aujourd'hui » figé au vendredi pour illustrer la couverture week-end.
 const today = new Date('2026-07-10T08:00:00+02:00')
@@ -77,31 +78,43 @@ export function DashboardPage() {
       {/* Fournisseurs à commander */}
       <SectionTitle>Fournisseurs — à commander</SectionTitle>
       <div className="flex flex-col gap-2">
-        {demoSuppliers.map((s) => (
-          <div
-            key={s.id}
-            className="flex items-center gap-3 rounded-[14px] border border-line bg-surface px-3.5 py-3"
-          >
-            <div className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-[15px] font-extrabold text-crust-ink">
-              {s.name[0]}
+        {demoSuppliers.map((s) => {
+          const plan = supplierPlan(s.calendar, today)
+          const deliv = cap(formatDayLong(civilToDate(plan.d1)))
+          return (
+            <div
+              key={s.id}
+              className="flex items-center gap-3 rounded-[14px] border border-line bg-surface px-3.5 py-3"
+            >
+              <div className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-[15px] font-extrabold text-crust-ink">
+                {s.name[0]}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-semibold">{s.name}</div>
+                <div className="text-[11px] text-ink-2">
+                  {s.dueToday ? (
+                    <>
+                      Commander avant {plan.cutoff} · livraison {deliv}
+                    </>
+                  ) : (
+                    <>Prochaine livraison {deliv}</>
+                  )}
+                </div>
+              </div>
+              {s.dueToday ? (
+                <Badge tone="warn">à commander</Badge>
+              ) : (
+                <a
+                  href={`tel:${s.phone.replace(/\s/g, '')}`}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-ok-soft text-ok"
+                  aria-label={`Appeler ${s.name}`}
+                >
+                  <Phone size={16} />
+                </a>
+              )}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-semibold">{s.name}</div>
-              <div className="text-[11px] text-ink-2">{s.deliveryLabel}</div>
-            </div>
-            {s.dueToday ? (
-              <Badge tone="warn">à commander</Badge>
-            ) : (
-              <a
-                href={`tel:${s.phone.replace(/\s/g, '')}`}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-ok-soft text-ok"
-                aria-label={`Appeler ${s.name}`}
-              >
-                <Phone size={16} />
-              </a>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <p className="mt-6 mb-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-ink-3">
