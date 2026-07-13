@@ -158,6 +158,39 @@ export function productsOfSupplier(supplierId: string): DemoProduct[] {
 /** « Maintenant » figé pour la démo : vendredi 10 juillet 2026, 08:00 (Europe/Paris). */
 export const DEMO_NOW = new Date('2026-07-10T08:00:00+02:00')
 
+/** Livraisons attendues (commandes déjà passées, à réceptionner). */
+export interface DemoDeliveryLine {
+  productId: string
+  orderedUnits: number
+}
+export interface DemoDelivery {
+  id: string
+  supplierId: string
+  orderedAtLabel: string
+  expectedLabel: string
+  lines: DemoDeliveryLine[]
+}
+
+export const demoDeliveries: DemoDelivery[] = [
+  {
+    id: 'del-metro',
+    supplierId: 's-metro',
+    orderedAtLabel: 'commandé hier',
+    expectedLabel: "attendue aujourd'hui",
+    lines: [
+      { productId: 'p-baguette', orderedUnits: 48 },
+      { productId: 'p-cereales', orderedUnits: 40 },
+    ],
+  },
+  {
+    id: 'del-bridor',
+    supplierId: 's-bridor',
+    orderedAtLabel: 'commandé mardi',
+    expectedLabel: "attendue aujourd'hui",
+    lines: [{ productId: 'p-croissant', orderedUnits: 360 }],
+  },
+]
+
 /**
  * Préparation = sortie groupée de produits (four OU décongélation, peu importe).
  * Souvent récurrente (« prépa du matin »). Le modèle propose des quantités, ajustables.
