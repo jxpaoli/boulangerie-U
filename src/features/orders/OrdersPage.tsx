@@ -29,6 +29,7 @@ import {
 } from '@/lib/orderCalendar'
 import { computeOrderProposal, type OrderProposal } from '@/lib/orderProposal'
 import { formatPacks, formatDayLong, plural, packBreakdown } from '@/lib/format'
+import { useDemoRole, isSignificantGap, type Role } from '@/features/demo/role'
 
 const SAFETY_DELIVERIES = 1 // filet « +1 livraison » (réglable plus tard)
 
@@ -195,10 +196,12 @@ function SupplierOrder({ supplier, onBack }: { supplier: DemoSupplier; onBack: (
         </a>
       </Card>
 
-      <div className="mt-2 flex items-center gap-2 px-1 text-[11.5px] text-ink-2">
-        <Eye size={14} className="text-crust" />
-        Contrôle visuel : {nbChecked}/{products.length} vérifiés — un coup d'œil au congélo recale
-        la quantité.
+      <div className="mt-2 flex items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2 text-[11.5px] text-ink-2">
+          <Eye size={14} className="text-crust" />
+          Contrôle visuel : {nbChecked}/{products.length} vérifiés
+        </div>
+        <RoleSwitch />
       </div>
 
       <div className="mt-2 flex flex-col gap-2">
@@ -270,6 +273,8 @@ function OrderLine({
   const [why, setWhy] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [reconciled, setReconciled] = useState(false)
+  const [proposed, setProposed] = useState(false)
+  const role = useDemoRole((s) => s.role)
   const edited = packs !== pr.packs
   const checkedStock = check ? check.full * p.packSize + partUnits(p.packSize, check.partIdx) : null
 
@@ -382,18 +387,29 @@ function OrderLine({
             })}
           </div>
 
-          {checkedStock !== null && checkedStock !== p.stockUnits && (
+          {checkedStock !== null && isSignificantGap(checkedStock, p.stockUnits) && (
             <div className="mt-3 border-t border-line pt-2.5">
-              {!reconciled ? (
+              <div className="flex items-center justify-between text-[11.5px]">
+                <span className="tabnums text-ink-2">
+                  Théorique {p.stockUnits} · vu {checkedStock}
+                </span>
+                <Badge tone={checkedStock < p.stockUnits ? 'warn' : 'crust'}>
+                  écart {ecart(checkedStock, p.stockUnits)} (&gt; 20 %)
+                </Badge>
+              </div>
+
+              {reconciled ? (
+                <div className="mt-2 flex items-center gap-1.5 text-[12px] font-semibold text-ok">
+                  <Check size={14} /> Stock recalé · correction {ecart(checkedStock, p.stockUnits)}{' '}
+                  enregistrée
+                </div>
+              ) : proposed ? (
+                <div className="mt-2 flex items-center gap-1.5 text-[12px] font-semibold text-crust-ink">
+                  <RefreshCw size={14} /> Recalage proposé ({ecart(checkedStock, p.stockUnits)}) · en
+                  attente du responsable
+                </div>
+              ) : role === 'responsable' ? (
                 <>
-                  <div className="flex items-center justify-between text-[11.5px]">
-                    <span className="tabnums text-ink-2">
-                      Théorique {p.stockUnits} · vu {checkedStock}
-                    </span>
-                    <Badge tone={checkedStock < p.stockUnits ? 'warn' : 'crust'}>
-                      écart {ecart(checkedStock, p.stockUnits)}
-                    </Badge>
-                  </div>
                   <button
                     onClick={() => setReconciled(true)}
                     className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-crust-soft py-2 text-[12.5px] font-bold text-crust-ink"
@@ -401,15 +417,23 @@ function OrderLine({
                     <RefreshCw size={14} /> Recaler le stock ({ecart(checkedStock, p.stockUnits)})
                   </button>
                   <p className="mt-1.5 text-[10.5px] leading-snug text-ink-3">
-                    La commande utilise déjà ce que tu as vu. « Recaler » corrige aussi ton stock
+                    La commande utilise déjà ce que tu as vu. « Recaler » corrige aussi le stock
                     (correction tracée) — sinon le contrôle ne sert qu'à cette commande.
                   </p>
                 </>
               ) : (
-                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-ok">
-                  <Check size={14} /> Stock recalé · correction {ecart(checkedStock, p.stockUnits)}{' '}
-                  enregistrée
-                </div>
+                <>
+                  <button
+                    onClick={() => setProposed(true)}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-surface py-2 text-[12.5px] font-bold text-crust-ink"
+                  >
+                    <RefreshCw size={14} /> Proposer un recalage ({ecart(checkedStock, p.stockUnits)})
+                  </button>
+                  <p className="mt-1.5 text-[10.5px] leading-snug text-ink-3">
+                    La commande utilise déjà ce que tu as vu. Le recalage du stock devra être
+                    validé par le responsable.
+                  </p>
+                </>
               )}
             </div>
           )}
@@ -537,6 +561,26 @@ function Row({ k, v }: { k: string; v: string | number }) {
     <div className="flex justify-between gap-3">
       <span className="text-ink-3">{k}</span>
       <span className="font-semibold text-ink">{v}</span>
+    </div>
+  )
+}
+
+function RoleSwitch() {
+  const { role, setRole } = useDemoRole()
+  const roles: Role[] = ['vendeuse', 'responsable']
+  return (
+    <div className="flex items-center overflow-hidden rounded-full border border-line bg-surface-2 text-[10.5px] font-bold">
+      {roles.map((r) => (
+        <button
+          key={r}
+          onClick={() => setRole(r)}
+          className={
+            'px-2.5 py-1 ' + (role === r ? 'bg-crust text-white' : 'text-ink-3')
+          }
+        >
+          {r === 'vendeuse' ? 'Vendeuse' : 'Responsable'}
+        </button>
+      ))}
     </div>
   )
 }

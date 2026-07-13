@@ -165,10 +165,14 @@ peut différer du stock théorique. Règle :
 - **Pour la commande, le vérifié prime** (la responsable vient de regarder).
 - **Le stock stocké n'est pas réécrit automatiquement** — un contrôle « à la louche » ne
   doit pas écraser silencieusement le théorique.
-- L'écart est **affiché** (« Théorique 28 · vu 19 · écart −9 »). Un bouton **« Recaler le
-  stock »** écrit une **correction tracée** (`stock_movements`, §0) pour aligner le théorique
-  sur ce qui a été vu — **au choix** de la responsable. Sans ce clic, le contrôle ne sert
-  qu'à ajuster cette commande.
+- Le recalage n'est proposé **que si l'écart dépasse 20 %** du stock théorique. En dessous,
+  on ajuste seulement la commande, sans rien proposer.
+- Au-delà de 20 %, l'écart est **affiché** (« Théorique 28 · vu 19 · écart −9 ») et :
+  - une **responsable** voit **« Recaler le stock »** → écrit une **correction tracée**
+    (`stock_movements`, §0) alignant le théorique sur ce qui a été vu ;
+  - une **vendeuse** voit **« Proposer un recalage »** → crée une **proposition** en attente
+    de validation par la responsable (§13). Elle ne corrige pas le stock elle-même.
+- Sans recalage validé, le contrôle ne sert qu'à ajuster cette commande.
 - Une commande n'est validable que si les lignes requises ont un statut de contrôle
   (ou qu'un responsable a explicitement ignoré le contrôle avec un motif).
 
@@ -284,12 +288,17 @@ l'historique montre « qui a sorti quoi, quand ».
 - **Toutes les actions du service sont attribuées à la personne connectée** — la
   traçabilité « qui a fait quoi » est automatique, sans rien saisir (§12bis).
 
-**Deux rôles en V1** (le schéma sait en exprimer plus) :
+**Deux rôles en V1** (le schéma sait en exprimer plus). Le rôle est **attaché à la
+personne** et modifiable : on peut nommer une vendeuse « responsable ».
 
 | Rôle | Peut faire |
 |---|---|
-| **admin** (propriétaire) | Tout, **y compris la configuration** : produits, familles, prépas, fournisseurs, calendriers, réglages, **gestion des comptes**. |
-| **staff** (personne en service) | **Tout le cycle quotidien** : sorties, exécuter les préparations, préparer / valider / passer les commandes, réceptionner les livraisons, inventaire. **Pas la configuration.** |
+| **vendeuse** | **Tout le cycle quotidien** : sorties, exécuter les préparations, préparer / passer les commandes, réceptionner les livraisons. Pour les **actions sensibles** (recalage de stock, grosses corrections), elle **propose** — elle ne valide pas. |
+| **responsable** | **Tous les droits de la vendeuse** + **valider les propositions**, recaler/corriger le stock, et la **configuration** (produits, familles, prépas, fournisseurs, réglages, comptes). |
+
+**Actions sensibles = proposition → validation.** Une vendeuse qui constate un gros écart
+propose un recalage ; il passe en **proposition** et le **responsable le valide** (ou le
+refuse). La commande, elle, n'est pas bloquée : elle utilise ce qui a été vu (§8).
 
 Les contrôles de droits ne sont **jamais uniquement graphiques** : ils sont appliqués aussi
 en **RLS** et dans les **fonctions PostgreSQL**. Un `site_id` est porté partout pour permettre
