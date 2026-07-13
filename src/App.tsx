@@ -7,6 +7,10 @@ import { OrdersPage } from '@/features/orders/OrdersPage'
 import { ReceptionsPage } from '@/features/deliveries/ReceptionsPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { ParametresPage } from '@/features/admin/ParametresPage'
+import { ProductsAdmin } from '@/features/admin/ProductsAdmin'
+import { SuppliersAdmin } from '@/features/admin/SuppliersAdmin'
+import { CategoriesAdmin } from '@/features/admin/CategoriesAdmin'
 
 export default function App() {
   const { user, loading } = useAuth()
@@ -28,6 +32,10 @@ export default function App() {
       <Route path="/inventaire" element={<InventoryPage />} />
       <Route path="/commandes" element={<OrdersPage />} />
       <Route path="/receptions" element={<ReceptionsPage />} />
+      <Route path="/parametres" element={<ParametresPage />} />
+      <Route path="/parametres/produits" element={<ProductsAdmin />} />
+      <Route path="/parametres/fournisseurs" element={<SuppliersAdmin />} />
+      <Route path="/parametres/familles" element={<CategoriesAdmin />} />
       <Route path="*" element={<DashboardPage />} />
     </Routes>
   )

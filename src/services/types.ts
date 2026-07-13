@@ -19,6 +19,7 @@ export interface Product {
   id: string
   name: string
   category: string
+  categoryId: string | null
   categoryPosition: number
   supplierId: string
   ref: string
@@ -55,10 +56,60 @@ export interface ReceptionLine {
   note?: string
 }
 
+export interface Category {
+  id: string
+  name: string
+  position: number
+}
+
 export interface CatalogService {
   listProducts(): Promise<Product[]>
   listSuppliers(): Promise<Supplier[]>
   listPrepas(): Promise<Prepa[]>
+  listCategories(): Promise<Category[]>
+}
+
+/* -------- Administration (config) : responsable uniquement (RLS) -------- */
+
+export interface ProductInput {
+  id?: string
+  siteId: string
+  name: string
+  categoryId: string | null
+  minUnits: number
+  maxUnits: number
+  supplierId: string | null
+  supplierRef: string
+  packSize: number
+  conso: number[] // 7 jours (0=lundi)
+}
+
+export interface SupplierInput {
+  id?: string
+  siteId: string
+  name: string
+  phone: string
+  orderDays: number[]
+  cutoff: string // 'HH:MM'
+  leadDays: number
+  leadKind: 'calendar' | 'business'
+  noWeekendDelivery: boolean
+}
+
+export interface CategoryInput {
+  id?: string
+  siteId: string
+  name: string
+  position: number
+}
+
+export interface AdminService {
+  saveProduct(p: ProductInput): Promise<void>
+  deleteProduct(id: string): Promise<void>
+  saveSupplier(s: SupplierInput): Promise<void>
+  deleteSupplier(id: string): Promise<void>
+  saveCategory(c: CategoryInput): Promise<void>
+  deleteCategory(id: string): Promise<void>
 }
 
 export interface StockService {
@@ -88,4 +139,5 @@ export interface DataServices {
   source: 'mock' | 'supabase'
   catalog: CatalogService
   stock: StockService
+  admin: AdminService
 }

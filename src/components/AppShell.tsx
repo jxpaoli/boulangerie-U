@@ -1,6 +1,15 @@
 import type { ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
-import { Home, PackageMinus, ClipboardList, Truck, Snowflake, Moon, LogOut } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import {
+  Home,
+  PackageMinus,
+  ClipboardList,
+  Truck,
+  Snowflake,
+  Moon,
+  LogOut,
+  Settings,
+} from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useTheme } from '@/lib/theme'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -28,6 +37,7 @@ export function AppShell({
 }) {
   const { toggle } = useTheme()
   const { user, signOut } = useAuth()
+  const navigate = useNavigate()
   return (
     <div className="mx-auto flex min-h-dvh max-w-[480px] flex-col bg-bg">
       <header className="flex items-end justify-between gap-3 px-4 pt-8 pb-3">
@@ -44,6 +54,15 @@ export function AppShell({
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           {action}
+          {user?.role === 'responsable' && (
+            <button
+              onClick={() => navigate('/parametres')}
+              aria-label="Paramètres"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink-2"
+            >
+              <Settings size={17} />
+            </button>
+          )}
           {user && (
             <button
               onClick={() => {

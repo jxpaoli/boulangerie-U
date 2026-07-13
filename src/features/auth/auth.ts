@@ -9,7 +9,10 @@ export interface AuthUser {
   id: string
   name: string
   role: Role
+  siteId: string
 }
+
+const DEMO_SITE = '00000000-0000-0000-0000-0000000000c1'
 
 export interface AuthAPI {
   current(): Promise<AuthUser | null>
@@ -25,7 +28,12 @@ export const DEMO_USERS: { name: string; role: Role; email: string }[] = [
 ]
 
 // démo : connectée par défaut en responsable (évite l'écran de login à chaque ouverture)
-let mockCurrent: AuthUser | null = { id: 'u-sabrina', name: 'Sabrina', role: 'responsable' }
+let mockCurrent: AuthUser | null = {
+  id: 'u-sabrina',
+  name: 'Sabrina',
+  role: 'responsable',
+  siteId: DEMO_SITE,
+}
 
 const mockAuth: AuthAPI = {
   async current() {
@@ -33,7 +41,7 @@ const mockAuth: AuthAPI = {
   },
   async signIn(email) {
     const u = DEMO_USERS.find((x) => x.email === email.trim().toLowerCase()) ?? DEMO_USERS[0]!
-    mockCurrent = { id: `u-${u.name.toLowerCase()}`, name: u.name, role: u.role }
+    mockCurrent = { id: `u-${u.name.toLowerCase()}`, name: u.name, role: u.role, siteId: DEMO_SITE }
     return mockCurrent
   },
   async signOut() {
@@ -47,11 +55,16 @@ async function profileOf(userId: string): Promise<AuthUser | null> {
   if (!supabase) return null
   const { data } = await supabase
     .from('profiles')
-    .select('display_name, role')
+    .select('display_name, role, site_id')
     .eq('id', userId)
     .maybeSingle()
   if (!data) return null
-  return { id: userId, name: data.display_name as string, role: data.role as Role }
+  return {
+    id: userId,
+    name: data.display_name as string,
+    role: data.role as Role,
+    siteId: data.site_id as string,
+  }
 }
 
 const supabaseAuth: AuthAPI = {

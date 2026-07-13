@@ -15,6 +15,7 @@ import type {
   Prepa,
   ExitLine,
   ReceptionLine,
+  Category,
 } from '@/services/types'
 
 function familyPosition(name: string): number {
@@ -34,6 +35,7 @@ function toProduct(p: (typeof demoProducts)[number]): Product {
     id: p.id,
     name: p.name,
     category: p.category,
+    categoryId: p.category, // en mock, l'id de famille = le nom
     categoryPosition: familyPosition(p.category),
     supplierId: p.supplierId,
     ref: p.ref,
@@ -58,6 +60,12 @@ export const mockServices: DataServices = {
     },
     async listPrepas(): Promise<Prepa[]> {
       return demoPrepas.map((p) => ({ ...p, lines: p.lines.map((l) => ({ ...l })) }))
+    },
+    async listCategories(): Promise<Category[]> {
+      const present = new Set(demoProducts.map((p) => p.category))
+      return (FAMILY_ORDER as readonly string[])
+        .filter((f) => present.has(f))
+        .map((name) => ({ id: name, name, position: familyPosition(name) }))
     },
   },
   stock: {
@@ -88,5 +96,15 @@ export const mockServices: DataServices = {
     async recordInventory(_kind, lines): Promise<void> {
       for (const l of lines) balances[l.productId] = Math.max(0, l.countedUnits)
     },
+  },
+
+  // En démo, l'administration ne persiste pas (l'admin réel est sur Supabase).
+  admin: {
+    async saveProduct() {},
+    async deleteProduct() {},
+    async saveSupplier() {},
+    async deleteSupplier() {},
+    async saveCategory() {},
+    async deleteCategory() {},
   },
 }

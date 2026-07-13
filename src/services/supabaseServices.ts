@@ -10,6 +10,10 @@ import type {
   Prepa,
   ExitLine,
   ReceptionLine,
+  Category,
+  ProductInput,
+  SupplierInput,
+  CategoryInput,
 } from '@/services/types'
 import type { SupplierCalendar, Weekday } from '@/lib/orderCalendar'
 import { toParisCivil, weekday } from '@/lib/orderCalendar'
@@ -79,7 +83,7 @@ export const supabaseServices: DataServices = {
           .from('products')
           .select(
             `id, name, internal_ref, location_id, min_units, max_units,
-             category:product_categories(name, position),
+             category:product_categories(id, name, position),
              supplier_products(supplier_id, supplier_ref, pack_size, order_unit),
              forecast:forecast_settings(conso_mon,conso_tue,conso_wed,conso_thu,conso_fri,conso_sat,conso_sun)`,
           )
@@ -94,13 +98,14 @@ export const supabaseServices: DataServices = {
 
       return (products ?? []).map((row): Product => {
         const sp = (row.supplier_products as Record<string, unknown>[] | null)?.[0]
-        const cat = row.category as { name?: string; position?: number } | null
+        const cat = row.category as { id?: string; name?: string; position?: number } | null
         const fRows = row.forecast as unknown as Record<string, number>[] | null
         const f = fRows?.[0] ?? null
         return {
           id: row.id as string,
           name: row.name as string,
           category: cat?.name ?? 'Autres',
+          categoryId: cat?.id ?? null,
           categoryPosition: cat?.position ?? 99,
           supplierId: (sp?.supplier_id as string) ?? '',
           ref: (sp?.supplier_ref as string) ?? (row.internal_ref as string) ?? '',
@@ -139,6 +144,20 @@ export const supabaseServices: DataServices = {
           productId: l.product_id as string,
           units: l.default_units as number,
         })),
+      }))
+    },
+
+    async listCategories(): Promise<Category[]> {
+      const { data, error } = await client()
+        .from('product_categories')
+        .select('id, name, position')
+        .eq('active', true)
+        .order('position')
+      if (error) throw error
+      return (data ?? []).map((r) => ({
+        id: r.id as string,
+        name: r.name as string,
+        position: (r.position as number) ?? 0,
       }))
     },
   },
@@ -187,6 +206,94 @@ export const supabaseServices: DataServices = {
         p_kind: kind,
         p_lines: lines.map((l) => ({ product_id: l.productId, counted_units: l.countedUnits })),
       })
+      if (error) throw error
+    },
+  },
+
+  admin: {
+    async saveProduct(p: ProductInput): Promise<void> {
+      const db = client()
+      const id = p.id ?? crypto.randomUUID()
+      const { error: e1 } = await db.from('products').upsert({
+        id,
+        site_id: p.siteId,
+        category_id: p.categoryId,
+        name: p.name,
+        min_units: p.minUnits,
+        max_units: p.maxUnits,
+        active: true,
+      })
+      if (e1) throw e1
+      await db.from('supplier_products').delete().eq('product_id', id)
+      if (p.supplierId) {
+        const { error: e2 } = await db.from('supplier_products').insert({
+          site_id: p.siteId,
+          supplier_id: p.supplierId,
+          product_id: id,
+          supplier_ref: p.supplierRef,
+          order_unit: 'carton',
+          pack_size: p.packSize,
+          min_order_packs: 1,
+          order_multiple_packs: 1,
+        })
+        if (e2) throw e2
+      }
+      const c = p.conso
+      const { error: e3 } = await db.from('forecast_settings').upsert({
+        product_id: id,
+        site_id: p.siteId,
+        conso_mon: c[0] ?? 0,
+        conso_tue: c[1] ?? 0,
+        conso_wed: c[2] ?? 0,
+        conso_thu: c[3] ?? 0,
+        conso_fri: c[4] ?? 0,
+        conso_sat: c[5] ?? 0,
+        conso_sun: c[6] ?? 0,
+      })
+      if (e3) throw e3
+    },
+    async deleteProduct(id: string): Promise<void> {
+      const { error } = await client().from('products').update({ active: false }).eq('id', id)
+      if (error) throw error
+    },
+    async saveSupplier(s: SupplierInput): Promise<void> {
+      const id = s.id ?? crypto.randomUUID()
+      const { error } = await client().from('suppliers').upsert({
+        id,
+        site_id: s.siteId,
+        name: s.name,
+        phone: s.phone,
+        order_channel: 'phone',
+        order_days: s.orderDays,
+        cutoff_time: s.cutoff,
+        delivery_mode: 'lead',
+        lead_days: s.leadDays,
+        lead_kind: s.leadKind,
+        no_weekend_delivery: s.noWeekendDelivery,
+        active: true,
+      })
+      if (error) throw error
+    },
+    async deleteSupplier(id: string): Promise<void> {
+      const { error } = await client().from('suppliers').update({ active: false }).eq('id', id)
+      if (error) throw error
+    },
+    async saveCategory(c: CategoryInput): Promise<void> {
+      const id = c.id ?? crypto.randomUUID()
+      const { error } = await client().from('product_categories').upsert({
+        id,
+        site_id: c.siteId,
+        name: c.name,
+        position: c.position,
+        active: true,
+      })
+      if (error) throw error
+    },
+    async deleteCategory(id: string): Promise<void> {
+      const { error } = await client()
+        .from('product_categories')
+        .update({ active: false })
+        .eq('id', id)
       if (error) throw error
     },
   },
