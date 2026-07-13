@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react'
-import { Phone, ChevronRight, AlertTriangle, Info, Copy, Check, Minus, Plus } from 'lucide-react'
+import {
+  Phone,
+  ChevronRight,
+  AlertTriangle,
+  Info,
+  Copy,
+  Check,
+  Minus,
+  Plus,
+  Eye,
+} from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge, Button } from '@/components/ui'
 import {
@@ -9,50 +19,82 @@ import {
   type DemoSupplier,
   type DemoProduct,
 } from '@/features/demo/data'
-import { supplierPlan, coverageEnd, toParisCivil, civilToDate } from '@/lib/orderCalendar'
+import {
+  supplierPlan,
+  coverageEnd,
+  toParisCivil,
+  civilToDate,
+  type Civil,
+} from '@/lib/orderCalendar'
 import { computeOrderProposal, type OrderProposal } from '@/lib/orderProposal'
-import { formatPacks, formatDayLong, plural } from '@/lib/format'
+import { formatPacks, formatDayLong, plural, packBreakdown } from '@/lib/format'
 
 const SAFETY_DELIVERIES = 1 // filet « +1 livraison » (réglable plus tard)
 
-interface Line {
-  product: DemoProduct
-  proposal: OrderProposal
+// carton entamé : fractions affichées en pièces
+const FRACS = [
+  { f: 0, lab: 'vide' },
+  { f: 0.25, lab: '¼' },
+  { f: 0.5, lab: '½' },
+  { f: 0.75, lab: '¾' },
+]
+const partUnits = (packSize: number, idx: number) => Math.round(packSize * (FRACS[idx]?.f ?? 0))
+function nearestPartIdx(remainder: number, packSize: number): number {
+  let best = 0
+  let bestDist = Infinity
+  FRACS.forEach((fr, i) => {
+    const d = Math.abs(Math.round(packSize * fr.f) - remainder)
+    if (d < bestDist) {
+      bestDist = d
+      best = i
+    }
+  })
+  return best
 }
 
-interface BuiltOrder {
+interface VisualCheck {
+  full: number
+  partIdx: number
+}
+
+interface OrderMeta {
+  now: Civil
+  d1: Civil
+  cov: Civil
   d1Label: string
   covLabel: string
   cutoff: string
-  lines: Line[]
 }
 
-function buildOrder(supplier: DemoSupplier): BuiltOrder {
+function orderMeta(supplier: DemoSupplier): OrderMeta {
   const now = toParisCivil(DEMO_NOW)
   const plan = supplierPlan(supplier.calendar, DEMO_NOW)
   const cov = coverageEnd(supplier.calendar, DEMO_NOW, SAFETY_DELIVERIES)
-  const lines = productsOfSupplier(supplier.id)
-    .map((product) => ({
-      product,
-      proposal: computeOrderProposal(
-        {
-          stockUnits: product.stockUnits,
-          conso7: product.conso,
-          packSize: product.packSize,
-          maxStockUnits: product.maxUnits,
-        },
-        now,
-        plan.d1,
-        cov,
-      ),
-    }))
-    .filter((l) => l.proposal.packs > 0 || l.proposal.ruptureBeforeDelivery)
   return {
+    now,
+    d1: plan.d1,
+    cov,
     d1Label: cap(formatDayLong(civilToDate(plan.d1))),
     covLabel: cap(formatDayLong(civilToDate(cov))),
     cutoff: plan.cutoff,
-    lines,
   }
+}
+
+function proposalFor(p: DemoProduct, stockUnits: number, meta: OrderMeta): OrderProposal {
+  return computeOrderProposal(
+    { stockUnits, conso7: p.conso, packSize: p.packSize, maxStockUnits: p.maxUnits },
+    meta.now,
+    meta.d1,
+    meta.cov,
+  )
+}
+
+/** Produits à proposer pour ce fournisseur (stock théorique). */
+function orderProducts(supplier: DemoSupplier, meta: OrderMeta): DemoProduct[] {
+  return productsOfSupplier(supplier.id).filter((p) => {
+    const pr = proposalFor(p, p.stockUnits, meta)
+    return pr.packs > 0 || pr.ruptureBeforeDelivery
+  })
 }
 
 export function OrdersPage() {
@@ -65,8 +107,9 @@ export function OrdersPage() {
     <AppShell eyebrow="Commande" title="Commandes du jour" subtitle="Vendredi 10 juillet">
       <div className="mt-2 flex flex-col gap-2">
         {dueSuppliers.map((s) => {
-          const order = buildOrder(s)
-          const hasRisk = order.lines.some((l) => l.proposal.ruptureBeforeDelivery)
+          const meta = orderMeta(s)
+          const products = orderProducts(s, meta)
+          const hasRisk = products.some((p) => proposalFor(p, p.stockUnits, meta).ruptureBeforeDelivery)
           return (
             <Card key={s.id} className="flex items-center gap-3" onClick={() => setSelected(s)}>
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-[16px] font-extrabold text-crust-ink">
@@ -75,13 +118,13 @@ export function OrdersPage() {
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-semibold">{s.name}</div>
                 <div className="tabnums text-[11.5px] text-ink-2">
-                  Avant {order.cutoff} · livraison {order.d1Label}
+                  Avant {meta.cutoff} · livraison {meta.d1Label}
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 {hasRisk && <AlertTriangle size={16} className="text-warn" />}
                 <Badge tone="crust">
-                  {order.lines.length} réf{order.lines.length > 1 ? 's' : ''}.
+                  {products.length} réf{products.length > 1 ? 's' : ''}.
                 </Badge>
                 <ChevronRight size={18} className="text-ink-3" />
               </div>
@@ -98,24 +141,35 @@ export function OrdersPage() {
 }
 
 function SupplierOrder({ supplier, onBack }: { supplier: DemoSupplier; onBack: () => void }) {
-  const order = useMemo(() => buildOrder(supplier), [supplier])
-  const [qty, setQty] = useState<Record<string, number>>(() =>
-    Object.fromEntries(order.lines.map((l) => [l.product.id, l.proposal.packs])),
-  )
+  const meta = useMemo(() => orderMeta(supplier), [supplier])
+  const products = useMemo(() => orderProducts(supplier, meta), [supplier, meta])
+
+  const [checks, setChecks] = useState<Record<string, VisualCheck | undefined>>({})
+  const [overrides, setOverrides] = useState<Record<string, number | undefined>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [sent, setSent] = useState(false)
 
-  const totalUnits = order.lines.reduce(
-    (s, l) => s + (qty[l.product.id] ?? 0) * l.product.packSize,
-    0,
-  )
+  function effectiveStock(p: DemoProduct): number {
+    const v = checks[p.id]
+    if (!v) return p.stockUnits
+    return v.full * p.packSize + partUnits(p.packSize, v.partIdx)
+  }
+  function packsFor(p: DemoProduct): number {
+    const ov = overrides[p.id]
+    if (ov !== undefined) return ov
+    return proposalFor(p, effectiveStock(p), meta).packs
+  }
+
+  const nbChecked = products.filter((p) => checks[p.id]).length
+  const totalUnits = products.reduce((s, p) => s + packsFor(p) * p.packSize, 0)
 
   if (sent) {
     return (
       <ExportView
         supplier={supplier}
-        order={order}
-        qty={qty}
+        meta={meta}
+        products={products}
+        packsFor={packsFor}
         notes={notes}
         onBack={() => setSent(false)}
       />
@@ -123,12 +177,12 @@ function SupplierOrder({ supplier, onBack }: { supplier: DemoSupplier; onBack: (
   }
 
   return (
-    <AppShell eyebrow="Commande" title={supplier.name} subtitle={`Couvrir jusqu'à ${order.covLabel}`}>
+    <AppShell eyebrow="Commande" title={supplier.name} subtitle={`Couvrir jusqu'à ${meta.covLabel}`}>
       <Card className="mt-1 flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="tabnums text-[13px] font-semibold">{supplier.phone}</div>
           <div className="text-[11px] text-ink-2">
-            Commander avant {order.cutoff} · livraison {order.d1Label}
+            Commander avant {meta.cutoff} · livraison {meta.d1Label}
           </div>
         </div>
         <a
@@ -140,15 +194,38 @@ function SupplierOrder({ supplier, onBack }: { supplier: DemoSupplier; onBack: (
         </a>
       </Card>
 
-      <div className="mt-3 flex flex-col gap-2">
-        {order.lines.map((line) => (
+      <div className="mt-2 flex items-center gap-2 px-1 text-[11.5px] text-ink-2">
+        <Eye size={14} className="text-crust" />
+        Contrôle visuel : {nbChecked}/{products.length} vérifiés — un coup d'œil au congélo recale
+        la quantité.
+      </div>
+
+      <div className="mt-2 flex flex-col gap-2">
+        {products.map((p) => (
           <OrderLine
-            key={line.product.id}
-            line={line}
-            packs={qty[line.product.id] ?? 0}
-            note={notes[line.product.id] ?? ''}
-            onPacks={(n) => setQty((q) => ({ ...q, [line.product.id]: Math.max(0, n) }))}
-            onNote={(t) => setNotes((m) => ({ ...m, [line.product.id]: t }))}
+            key={p.id}
+            product={p}
+            proposal={proposalFor(p, effectiveStock(p), meta)}
+            packs={packsFor(p)}
+            check={checks[p.id]}
+            note={notes[p.id] ?? ''}
+            onPacks={(n) => setOverrides((o) => ({ ...o, [p.id]: Math.max(0, n) }))}
+            onNote={(t) => setNotes((m) => ({ ...m, [p.id]: t }))}
+            onToggleCheck={() =>
+              setChecks((c) => {
+                if (c[p.id]) {
+                  const next = { ...c }
+                  delete next[p.id]
+                  return next
+                }
+                const { packs, remainder } = packBreakdown(p.stockUnits, p.packSize)
+                return { ...c, [p.id]: { full: packs, partIdx: nearestPartIdx(remainder, p.packSize) } }
+              })
+            }
+            onCheckChange={(v) => {
+              setChecks((c) => ({ ...c, [p.id]: v }))
+              setOverrides((o) => ({ ...o, [p.id]: undefined })) // la quantité re-suit la proposition
+            }}
           />
         ))}
       </div>
@@ -164,30 +241,35 @@ function SupplierOrder({ supplier, onBack }: { supplier: DemoSupplier; onBack: (
         </Button>
         <Button onClick={() => setSent(true)}>Préparer l'appel →</Button>
       </div>
-      <p className="mt-3 text-center text-[11px] text-ink-3">
-        Prochaine étape prévue : contrôle visuel (cartons pleins + carton entamé) avant validation.
-      </p>
     </AppShell>
   )
 }
 
 function OrderLine({
-  line,
+  product: p,
+  proposal: pr,
   packs,
+  check,
   note,
   onPacks,
   onNote,
+  onToggleCheck,
+  onCheckChange,
 }: {
-  line: Line
+  product: DemoProduct
+  proposal: OrderProposal
   packs: number
+  check: VisualCheck | undefined
   note: string
   onPacks: (n: number) => void
   onNote: (t: string) => void
+  onToggleCheck: () => void
+  onCheckChange: (v: VisualCheck) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [why, setWhy] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
-  const { product: p, proposal: pr } = line
   const edited = packs !== pr.packs
+  const checkedStock = check ? check.full * p.packSize + partUnits(p.packSize, check.partIdx) : null
 
   return (
     <Card>
@@ -195,7 +277,12 @@ function OrderLine({
         <div className="min-w-0 flex-1">
           <div className="text-[14.5px] font-semibold">{p.name}</div>
           <div className="tabnums text-[11px] text-ink-3">
-            Réf {p.ref} · en stock {formatPacks(p.stockUnits, p.packSize, p.packLabel)}
+            Réf {p.ref} ·{' '}
+            {checkedStock !== null ? (
+              <span className="text-crust-ink">stock vérifié {formatPacks(checkedStock, p.packSize, p.packLabel)}</span>
+            ) : (
+              <>stock {formatPacks(p.stockUnits, p.packSize, p.packLabel)}</>
+            )}
           </div>
         </div>
         <div className="flex items-center overflow-hidden rounded-[11px] border border-line bg-surface-2">
@@ -224,17 +311,76 @@ function OrderLine({
         </span>
         {pr.ruptureBeforeDelivery && <Badge tone="danger">rupture avant livraison</Badge>}
         {pr.capped && <Badge tone="warn">plafonné</Badge>}
-        {!pr.capped && !pr.ruptureBeforeDelivery && !edited && <Badge tone="crust">suggéré</Badge>}
+        {check && <Badge tone="ok">vérifié</Badge>}
+        {!pr.capped && !pr.ruptureBeforeDelivery && !edited && !check && (
+          <Badge tone="crust">suggéré</Badge>
+        )}
       </div>
 
       <div className="mt-2 flex items-center gap-3 text-[11px] font-semibold text-ink-2">
-        <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1">
+        <button
+          onClick={onToggleCheck}
+          className={check ? 'flex items-center gap-1 text-crust-ink' : 'flex items-center gap-1'}
+        >
+          <Eye size={13} /> Contrôle visuel
+        </button>
+        <button onClick={() => setWhy((o) => !o)} className="flex items-center gap-1">
           <Info size={13} /> Pourquoi ?
         </button>
         <button onClick={() => setNoteOpen((o) => !o)} className="flex items-center gap-1">
           + Note{note ? ' ✓' : ''}
         </button>
       </div>
+
+      {check && (
+        <div className="mt-2 rounded-[12px] bg-surface-2 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-semibold text-ink-2">Cartons pleins</span>
+            <div className="flex items-center overflow-hidden rounded-[10px] border border-line bg-surface">
+              <button
+                onClick={() => onCheckChange({ ...check, full: Math.max(0, check.full - 1) })}
+                className="flex h-8 w-9 items-center justify-center text-crust-ink"
+                aria-label="Moins carton"
+              >
+                <Minus size={15} />
+              </button>
+              <div className="tabnums w-8 text-center text-[15px] font-extrabold">{check.full}</div>
+              <button
+                onClick={() => onCheckChange({ ...check, full: check.full + 1 })}
+                className="flex h-8 w-9 items-center justify-center text-crust-ink"
+                aria-label="Plus carton"
+              >
+                <Plus size={15} />
+              </button>
+            </div>
+          </div>
+          <div className="mt-2 text-[12px] font-semibold text-ink-2">Carton entamé — reste ≈</div>
+          <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+            {FRACS.map((fr, idx) => {
+              const on = check.partIdx === idx
+              return (
+                <button
+                  key={fr.lab}
+                  onClick={() => onCheckChange({ ...check, partIdx: idx })}
+                  className={
+                    'rounded-[10px] border py-2 text-center ' +
+                    (on
+                      ? idx === 0
+                        ? 'border-warn bg-warn-soft'
+                        : 'border-crust bg-crust-soft'
+                      : 'border-line bg-surface')
+                  }
+                >
+                  <div className={'tabnums text-[15px] font-extrabold ' + (on && idx === 0 ? 'text-warn' : on ? 'text-crust-ink' : 'text-ink')}>
+                    {partUnits(p.packSize, idx)}
+                  </div>
+                  <div className="text-[9.5px] font-bold text-ink-3">{fr.lab}</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {noteOpen && (
         <input
@@ -245,9 +391,11 @@ function OrderLine({
         />
       )}
 
-      {open && (
+      {why && (
         <div className="tabnums mt-2 flex flex-col gap-1 border-t border-dashed border-line pt-2 text-[11.5px] text-ink-2">
-          <Row k="Stock actuel" v={`${p.stockUnits} u.`} />
+          {check && checkedStock !== null && (
+            <Row k="Stock (théorique → vérifié)" v={`${p.stockUnits} → ${checkedStock} u.`} />
+          )}
           <Row k="Conso avant livraison" v={`− ${pr.consoBeforeD1} u.`} />
           <Row k="Stock projeté à la livraison" v={`${pr.projectedBeforeD1} u.`} />
           <Row k="Besoin à couvrir (avec filet)" v={`${pr.besoinCible} u.`} />
@@ -267,37 +415,35 @@ function OrderLine({
 
 function ExportView({
   supplier,
-  order,
-  qty,
+  meta,
+  products,
+  packsFor,
   notes,
   onBack,
 }: {
   supplier: DemoSupplier
-  order: BuiltOrder
-  qty: Record<string, number>
+  meta: OrderMeta
+  products: DemoProduct[]
+  packsFor: (p: DemoProduct) => number
   notes: Record<string, string>
   onBack: () => void
 }) {
   const [copied, setCopied] = useState(false)
 
   const text = useMemo(() => {
-    const head = [
-      `Commande ${supplier.name} — vendredi 10 juillet`,
-      `À livrer ${order.d1Label}`,
-      '',
-    ]
-    const body = order.lines
-      .filter((l) => (qty[l.product.id] ?? 0) > 0)
-      .map((l) => {
-        const n = qty[l.product.id] ?? 0
-        const note = notes[l.product.id]
+    const head = [`Commande ${supplier.name} — vendredi 10 juillet`, `À livrer ${meta.d1Label}`, '']
+    const body = products
+      .filter((p) => packsFor(p) > 0)
+      .map((p) => {
+        const n = packsFor(p)
+        const note = notes[p.id]
         return (
-          `• ${l.product.name} (réf ${l.product.ref}) — ${n} ${plural(l.product.packLabel, n)}` +
+          `• ${p.name} (réf ${p.ref}) — ${n} ${plural(p.packLabel, n)}` +
           (note ? `  [${note}]` : '')
         )
       })
     return [...head, ...body].join('\n')
-  }, [supplier, order, qty, notes])
+  }, [supplier, meta, products, packsFor, notes])
 
   async function copy() {
     try {
@@ -352,7 +498,7 @@ function ExportView({
   )
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+function Row({ k, v }: { k: string; v: string | number }) {
   return (
     <div className="flex justify-between gap-3">
       <span className="text-ink-3">{k}</span>
