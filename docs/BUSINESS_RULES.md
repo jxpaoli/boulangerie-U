@@ -159,6 +159,16 @@ de 24 = 6, pas en %).
 - Elle est conservée avec la commande, alerte si écart, et permet d'ajuster la quantité.
 - Un **comptage exact** peut donner une **correction de stock**, mais uniquement
   après confirmation explicite (= mini-inventaire).
+
+**Réconciliation théorique vs vérifié (deux chiffres possibles).** Le contrôle visuel
+peut différer du stock théorique. Règle :
+- **Pour la commande, le vérifié prime** (la responsable vient de regarder).
+- **Le stock stocké n'est pas réécrit automatiquement** — un contrôle « à la louche » ne
+  doit pas écraser silencieusement le théorique.
+- L'écart est **affiché** (« Théorique 28 · vu 19 · écart −9 »). Un bouton **« Recaler le
+  stock »** écrit une **correction tracée** (`stock_movements`, §0) pour aligner le théorique
+  sur ce qui a été vu — **au choix** de la responsable. Sans ce clic, le contrôle ne sert
+  qu'à ajuster cette commande.
 - Une commande n'est validable que si les lignes requises ont un statut de contrôle
   (ou qu'un responsable a explicitement ignoré le contrôle avec un motif).
 

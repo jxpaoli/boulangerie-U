@@ -9,6 +9,7 @@ import {
   Minus,
   Plus,
   Eye,
+  RefreshCw,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge, Button } from '@/components/ui'
@@ -268,6 +269,7 @@ function OrderLine({
 }) {
   const [why, setWhy] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [reconciled, setReconciled] = useState(false)
   const edited = packs !== pr.packs
   const checkedStock = check ? check.full * p.packSize + partUnits(p.packSize, check.partIdx) : null
 
@@ -379,6 +381,38 @@ function OrderLine({
               )
             })}
           </div>
+
+          {checkedStock !== null && checkedStock !== p.stockUnits && (
+            <div className="mt-3 border-t border-line pt-2.5">
+              {!reconciled ? (
+                <>
+                  <div className="flex items-center justify-between text-[11.5px]">
+                    <span className="tabnums text-ink-2">
+                      Théorique {p.stockUnits} · vu {checkedStock}
+                    </span>
+                    <Badge tone={checkedStock < p.stockUnits ? 'warn' : 'crust'}>
+                      écart {ecart(checkedStock, p.stockUnits)}
+                    </Badge>
+                  </div>
+                  <button
+                    onClick={() => setReconciled(true)}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-crust-soft py-2 text-[12.5px] font-bold text-crust-ink"
+                  >
+                    <RefreshCw size={14} /> Recaler le stock ({ecart(checkedStock, p.stockUnits)})
+                  </button>
+                  <p className="mt-1.5 text-[10.5px] leading-snug text-ink-3">
+                    La commande utilise déjà ce que tu as vu. « Recaler » corrige aussi ton stock
+                    (correction tracée) — sinon le contrôle ne sert qu'à cette commande.
+                  </p>
+                </>
+              ) : (
+                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-ok">
+                  <Check size={14} /> Stock recalé · correction {ecart(checkedStock, p.stockUnits)}{' '}
+                  enregistrée
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -505,6 +539,11 @@ function Row({ k, v }: { k: string; v: string | number }) {
       <span className="font-semibold text-ink">{v}</span>
     </div>
   )
+}
+
+function ecart(seen: number, theo: number): string {
+  const d = seen - theo
+  return d > 0 ? `+${d}` : `${d}`
 }
 
 function cap(s: string): string {
