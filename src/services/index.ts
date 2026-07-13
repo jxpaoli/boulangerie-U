@@ -9,4 +9,4 @@ import type { DataServices } from '@/services/types'
 
 export const services: DataServices = dataSource === 'supabase' ? supabaseServices : mockServices
 
-export type { Product, Supplier, Prepa, ExitLine, DataServices } from '@/services/types'
+export type { Product, Supplier, Prepa, ExitLine, CountLine, DataServices } from '@/services/types'

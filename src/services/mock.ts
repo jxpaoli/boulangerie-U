@@ -16,6 +16,7 @@ import type {
   ExitLine,
   ReceptionLine,
   Category,
+  CountLine,
 } from '@/services/types'
 
 function familyPosition(name: string): number {
@@ -107,4 +108,35 @@ export const mockServices: DataServices = {
     async saveCategory() {},
     async deleteCategory() {},
   },
+
+  inventory: {
+    async open() {
+      return 'mock-count'
+    },
+    async listLines(): Promise<CountLine[]> {
+      return Object.entries(invLines).map(([productId, l]) => ({ productId, ...l }))
+    },
+    async validateLine(_countId, productId, countedUnits) {
+      invLines[productId] = {
+        countedUnits,
+        validatedBy: 'u-sabrina',
+        validatedAt: new Date().toISOString(),
+      }
+    },
+    async finish() {
+      for (const [productId, l] of Object.entries(invLines)) {
+        balances[productId] = Math.max(0, l.countedUnits)
+      }
+      for (const k of Object.keys(invLines)) delete invLines[k]
+    },
+    async members() {
+      return { 'u-sabrina': 'Sabrina', 'u-léa': 'Léa' }
+    },
+    subscribe() {
+      return () => {}
+    },
+  },
 }
+
+const invLines: Record<string, { countedUnits: number; validatedBy: string; validatedAt: string }> =
+  {}

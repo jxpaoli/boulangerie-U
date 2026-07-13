@@ -14,6 +14,7 @@ import type {
   ProductInput,
   SupplierInput,
   CategoryInput,
+  CountLine,
 } from '@/services/types'
 import type { SupplierCalendar, Weekday } from '@/lib/orderCalendar'
 import { toParisCivil, weekday } from '@/lib/orderCalendar'
@@ -295,6 +296,66 @@ export const supabaseServices: DataServices = {
         .update({ active: false })
         .eq('id', id)
       if (error) throw error
+    },
+  },
+
+  inventory: {
+    async open(): Promise<string> {
+      const { data, error } = await client().rpc('open_inventory')
+      if (error) throw error
+      return data as string
+    },
+    async listLines(countId: string): Promise<CountLine[]> {
+      const { data, error } = await client()
+        .from('stock_count_lines')
+        .select('product_id, counted_units, validated_by, validated_at')
+        .eq('count_id', countId)
+      if (error) throw error
+      return (data ?? []).map((r) => ({
+        productId: r.product_id as string,
+        countedUnits: (r.counted_units as number) ?? 0,
+        validatedBy: (r.validated_by as string) ?? null,
+        validatedAt: (r.validated_at as string) ?? null,
+      }))
+    },
+    async validateLine(countId: string, productId: string, countedUnits: number): Promise<void> {
+      const { error } = await client().rpc('validate_count_line', {
+        p_count: countId,
+        p_product: productId,
+        p_counted: countedUnits,
+      })
+      if (error) throw error
+    },
+    async finish(countId: string): Promise<void> {
+      const { error } = await client().rpc('finish_inventory', { p_count: countId })
+      if (error) throw error
+    },
+    async members(): Promise<Record<string, string>> {
+      const { data, error } = await client().from('profiles').select('id, display_name')
+      if (error) throw error
+      const m: Record<string, string> = {}
+      for (const p of data ?? []) m[p.id as string] = p.display_name as string
+      return m
+    },
+    subscribe(countId: string, onChange: () => void): () => void {
+      const sb = supabase
+      if (!sb) return () => {}
+      const ch = sb
+        .channel(`inv-${countId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'point_chaud',
+            table: 'stock_count_lines',
+            filter: `count_id=eq.${countId}`,
+          },
+          () => onChange(),
+        )
+        .subscribe()
+      return () => {
+        void sb.removeChannel(ch)
+      }
     },
   },
 }

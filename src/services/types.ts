@@ -135,9 +135,32 @@ export interface StockService {
   ): Promise<void>
 }
 
+/* ---------------- Inventaire collaboratif (session + temps réel) --------------- */
+
+export interface CountLine {
+  productId: string
+  countedUnits: number
+  validatedBy: string | null
+  validatedAt: string | null
+}
+
+export interface InventoryService {
+  /** ouvre (ou récupère) la session d'inventaire en cours ; renvoie son id */
+  open(): Promise<string>
+  listLines(countId: string): Promise<CountLine[]>
+  validateLine(countId: string, productId: string, countedUnits: number): Promise<void>
+  /** clôture (responsable) : applique les corrections */
+  finish(countId: string): Promise<void>
+  /** id utilisateur -> nom (pour afficher « validé par ») */
+  members(): Promise<Record<string, string>>
+  /** synchro temps réel : rappelle onChange à chaque validation ; renvoie un désabonnement */
+  subscribe(countId: string, onChange: () => void): () => void
+}
+
 export interface DataServices {
   source: 'mock' | 'supabase'
   catalog: CatalogService
   stock: StockService
   admin: AdminService
+  inventory: InventoryService
 }
