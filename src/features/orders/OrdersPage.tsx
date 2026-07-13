@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Phone,
   ChevronRight,
@@ -13,13 +14,8 @@ import {
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge, Button } from '@/components/ui'
-import {
-  demoSuppliers,
-  productsOfSupplier,
-  DEMO_NOW,
-  type DemoSupplier,
-  type DemoProduct,
-} from '@/features/demo/data'
+import { services, type Supplier, type Product } from '@/services'
+import { DEMO_NOW } from '@/features/demo/data'
 import {
   supplierPlan,
   coverageEnd,
@@ -68,7 +64,7 @@ interface OrderMeta {
   cutoff: string
 }
 
-function orderMeta(supplier: DemoSupplier): OrderMeta {
+function orderMeta(supplier: Supplier): OrderMeta {
   const now = toParisCivil(DEMO_NOW)
   const plan = supplierPlan(supplier.calendar, DEMO_NOW)
   const cov = coverageEnd(supplier.calendar, DEMO_NOW, SAFETY_DELIVERIES)
@@ -82,7 +78,7 @@ function orderMeta(supplier: DemoSupplier): OrderMeta {
   }
 }
 
-function proposalFor(p: DemoProduct, stockUnits: number, meta: OrderMeta): OrderProposal {
+function proposalFor(p: Product, stockUnits: number, meta: OrderMeta): OrderProposal {
   return computeOrderProposal(
     { stockUnits, conso7: p.conso, packSize: p.packSize, maxStockUnits: p.maxUnits },
     meta.now,
@@ -92,25 +88,42 @@ function proposalFor(p: DemoProduct, stockUnits: number, meta: OrderMeta): Order
 }
 
 /** Produits à proposer pour ce fournisseur (stock théorique). */
-function orderProducts(supplier: DemoSupplier, meta: OrderMeta): DemoProduct[] {
-  return productsOfSupplier(supplier.id).filter((p) => {
-    const pr = proposalFor(p, p.stockUnits, meta)
-    return pr.packs > 0 || pr.ruptureBeforeDelivery
-  })
+function orderProducts(allProducts: Product[], supplier: Supplier, meta: OrderMeta): Product[] {
+  return allProducts
+    .filter((p) => p.supplierId === supplier.id)
+    .filter((p) => {
+      const pr = proposalFor(p, p.stockUnits, meta)
+      return pr.packs > 0 || pr.ruptureBeforeDelivery
+    })
 }
 
 export function OrdersPage() {
-  const [selected, setSelected] = useState<DemoSupplier | null>(null)
-  const dueSuppliers = useMemo(() => demoSuppliers.filter((s) => s.dueToday), [])
+  const [selected, setSelected] = useState<Supplier | null>(null)
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: () => services.catalog.listSuppliers(),
+  })
+  const { data: allProducts = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => services.catalog.listProducts(),
+  })
+  const dueSuppliers = useMemo(() => suppliers.filter((s) => s.dueToday), [suppliers])
 
-  if (selected) return <SupplierOrder supplier={selected} onBack={() => setSelected(null)} />
+  if (selected)
+    return (
+      <SupplierOrder
+        supplier={selected}
+        allProducts={allProducts}
+        onBack={() => setSelected(null)}
+      />
+    )
 
   return (
     <AppShell eyebrow="Commande" title="Commandes du jour" subtitle="Vendredi 10 juillet">
       <div className="mt-2 flex flex-col gap-2">
         {dueSuppliers.map((s) => {
           const meta = orderMeta(s)
-          const products = orderProducts(s, meta)
+          const products = orderProducts(allProducts, s, meta)
           const hasRisk = products.some((p) => proposalFor(p, p.stockUnits, meta).ruptureBeforeDelivery)
           return (
             <Card key={s.id} className="flex items-center gap-3" onClick={() => setSelected(s)}>
@@ -142,21 +155,32 @@ export function OrdersPage() {
   )
 }
 
-function SupplierOrder({ supplier, onBack }: { supplier: DemoSupplier; onBack: () => void }) {
+function SupplierOrder({
+  supplier,
+  allProducts,
+  onBack,
+}: {
+  supplier: Supplier
+  allProducts: Product[]
+  onBack: () => void
+}) {
   const meta = useMemo(() => orderMeta(supplier), [supplier])
-  const products = useMemo(() => orderProducts(supplier, meta), [supplier, meta])
+  const products = useMemo(
+    () => orderProducts(allProducts, supplier, meta),
+    [allProducts, supplier, meta],
+  )
 
   const [checks, setChecks] = useState<Record<string, VisualCheck | undefined>>({})
   const [overrides, setOverrides] = useState<Record<string, number | undefined>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [sent, setSent] = useState(false)
 
-  function effectiveStock(p: DemoProduct): number {
+  function effectiveStock(p: Product): number {
     const v = checks[p.id]
     if (!v) return p.stockUnits
     return v.full * p.packSize + partUnits(p.packSize, v.partIdx)
   }
-  function packsFor(p: DemoProduct): number {
+  function packsFor(p: Product): number {
     const ov = overrides[p.id]
     if (ov !== undefined) return ov
     return proposalFor(p, effectiveStock(p), meta).packs
@@ -260,7 +284,7 @@ function OrderLine({
   onToggleCheck,
   onCheckChange,
 }: {
-  product: DemoProduct
+  product: Product
   proposal: OrderProposal
   packs: number
   check: VisualCheck | undefined
@@ -479,10 +503,10 @@ function ExportView({
   notes,
   onBack,
 }: {
-  supplier: DemoSupplier
+  supplier: Supplier
   meta: OrderMeta
-  products: DemoProduct[]
-  packsFor: (p: DemoProduct) => number
+  products: Product[]
+  packsFor: (p: Product) => number
   notes: Record<string, string>
   onBack: () => void
 }) {

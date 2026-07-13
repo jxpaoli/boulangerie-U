@@ -9,6 +9,7 @@ import type {
   Supplier,
   Prepa,
   ExitLine,
+  ReceptionLine,
 } from '@/services/types'
 import type { SupplierCalendar, Weekday } from '@/lib/orderCalendar'
 import { toParisCivil, weekday } from '@/lib/orderCalendar'
@@ -157,6 +158,26 @@ export const supabaseServices: DataServices = {
         p_lines: lines.map((l) => ({ product_id: l.productId, units: l.units })),
         p_note: note ?? null,
         p_force: force,
+      })
+      if (error) throw error
+    },
+
+    async recordReception(
+      idempotencyKey: string,
+      supplierId: string,
+      orderId: string | null,
+      lines: ReceptionLine[],
+    ): Promise<void> {
+      const { error } = await client().rpc('receive_delivery', {
+        p_supplier_id: supplierId,
+        p_order_id: orderId,
+        p_lines: lines.map((l) => ({
+          product_id: l.productId,
+          ordered_units: l.orderedUnits,
+          accepted_units: l.acceptedUnits,
+          note: l.note ?? null,
+        })),
+        p_idempotency_key: idempotencyKey,
       })
       if (error) throw error
     },

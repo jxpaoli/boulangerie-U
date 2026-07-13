@@ -48,6 +48,13 @@ export interface ExitLine {
   units: number
 }
 
+export interface ReceptionLine {
+  productId: string
+  orderedUnits: number
+  acceptedUnits: number
+  note?: string
+}
+
 export interface CatalogService {
   listProducts(): Promise<Product[]>
   listSuppliers(): Promise<Supplier[]>
@@ -63,6 +70,13 @@ export interface StockService {
    * @param force    forcer un stock négatif (responsable uniquement)
    */
   recordExit(batchId: string, lines: ExitLine[], note?: string, force?: boolean): Promise<void>
+  /** Réception : seul l'accepté entre en stock. Idempotent via idempotencyKey. */
+  recordReception(
+    idempotencyKey: string,
+    supplierId: string,
+    orderId: string | null,
+    lines: ReceptionLine[],
+  ): Promise<void>
 }
 
 export interface DataServices {

@@ -1,20 +1,39 @@
 import { useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Truck, ChevronRight, Minus, Plus, Check, PackageCheck } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
-import {
-  demoDeliveries,
-  demoSuppliers,
-  supplierOf,
-  productById,
-  type DemoDelivery,
-} from '@/features/demo/data'
+import { demoDeliveries, type DemoDelivery } from '@/features/demo/data'
+import { services, type Product } from '@/services'
 import { formatPacks, plural } from '@/lib/format'
 
 export function ReceptionsPage() {
   const [selected, setSelected] = useState<DemoDelivery | null>(null)
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => services.catalog.listProducts(),
+  })
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: () => services.catalog.listSuppliers(),
+  })
 
-  if (selected) return <Reception delivery={selected} onBack={() => setSelected(null)} />
+  const byId = useMemo(() => {
+    const m: Record<string, Product> = {}
+    for (const p of products) m[p.id] = p
+    return m
+  }, [products])
+  const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? id
+
+  if (selected)
+    return (
+      <Reception
+        delivery={selected}
+        byId={byId}
+        supplierName={supplierName(selected.supplierId)}
+        onBack={() => setSelected(null)}
+      />
+    )
 
   return (
     <AppShell eyebrow="Réception" title="Livraisons attendues" subtitle="Vendredi 10 juillet">
@@ -24,26 +43,23 @@ export function ReceptionsPage() {
         </div>
       ) : (
         <div className="mt-2 flex flex-col gap-2">
-          {demoDeliveries.map((d) => {
-            const name = demoSuppliers.find((x) => x.id === d.supplierId)?.name ?? d.supplierId
-            return (
-              <Card key={d.id} className="flex items-center gap-3" onClick={() => setSelected(d)}>
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-crust-ink">
-                  <Truck size={20} />
+          {demoDeliveries.map((d) => (
+            <Card key={d.id} className="flex items-center gap-3" onClick={() => setSelected(d)}>
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-crust-ink">
+                <Truck size={20} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-semibold">{supplierName(d.supplierId)}</div>
+                <div className="text-[11.5px] text-ink-2">
+                  {d.orderedAtLabel} · {d.expectedLabel}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-semibold">{name}</div>
-                  <div className="text-[11.5px] text-ink-2">
-                    {d.orderedAtLabel} · {d.expectedLabel}
-                  </div>
-                </div>
-                <Badge tone="crust">
-                  {d.lines.length} réf{d.lines.length > 1 ? 's' : ''}.
-                </Badge>
-                <ChevronRight size={18} className="text-ink-3" />
-              </Card>
-            )
-          })}
+              </div>
+              <Badge tone="crust">
+                {d.lines.length} réf{d.lines.length > 1 ? 's' : ''}.
+              </Badge>
+              <ChevronRight size={18} className="text-ink-3" />
+            </Card>
+          ))}
         </div>
       )}
       <p className="mt-4 px-1 text-[11.5px] text-ink-3">
@@ -54,27 +70,30 @@ export function ReceptionsPage() {
   )
 }
 
-function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () => void }) {
-  const supplierName = useMemo(() => {
-    const first = productById(delivery.lines[0]?.productId ?? '')
-    return first ? supplierOf(first).name : delivery.supplierId
-  }, [delivery])
+function Reception({
+  delivery,
+  byId,
+  supplierName,
+  onBack,
+}: {
+  delivery: DemoDelivery
+  byId: Record<string, Product>
+  supplierName: string
+  onBack: () => void
+}) {
+  const qc = useQueryClient()
+  const packSize = (id: string) => byId[id]?.packSize ?? 1
 
-  // quantités acceptées, en CARTONS (défaut = commandé)
   const [acceptedPacks, setAcceptedPacks] = useState<Record<string, number>>(() =>
     Object.fromEntries(
-      delivery.lines.map((l) => {
-        const p = productById(l.productId)!
-        return [l.productId, Math.round(l.orderedUnits / p.packSize)]
-      }),
+      delivery.lines.map((l) => [l.productId, Math.round(l.orderedUnits / (byId[l.productId]?.packSize ?? 1))]),
     ),
   )
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [done, setDone] = useState(false)
 
   function orderedPacks(productId: string, orderedUnits: number): number {
-    const p = productById(productId)!
-    return Math.round(orderedUnits / p.packSize)
+    return Math.round(orderedUnits / packSize(productId))
   }
 
   function setConforme() {
@@ -85,14 +104,29 @@ function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () =>
     )
   }
 
-  const enteredUnits = delivery.lines.reduce((sum, l) => {
-    const p = productById(l.productId)!
-    return sum + (acceptedPacks[l.productId] ?? 0) * p.packSize
-  }, 0)
-
+  const enteredUnits = delivery.lines.reduce(
+    (sum, l) => sum + (acceptedPacks[l.productId] ?? 0) * packSize(l.productId),
+    0,
+  )
   const anyShort = delivery.lines.some(
     (l) => (acceptedPacks[l.productId] ?? 0) < orderedPacks(l.productId, l.orderedUnits),
   )
+
+  async function validate() {
+    await services.stock.recordReception(
+      delivery.id, // clé d'idempotence stable
+      delivery.supplierId,
+      null,
+      delivery.lines.map((l) => ({
+        productId: l.productId,
+        orderedUnits: l.orderedUnits,
+        acceptedUnits: (acceptedPacks[l.productId] ?? 0) * packSize(l.productId),
+        note: notes[l.productId],
+      })),
+    )
+    await qc.invalidateQueries({ queryKey: ['products'] })
+    setDone(true)
+  }
 
   if (done) {
     return (
@@ -104,7 +138,6 @@ function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () =>
           <div className="mt-4 text-[15px] font-bold">Entré en stock</div>
           <div className="mt-3 flex w-full flex-col gap-1.5 px-2">
             {delivery.lines.map((l) => {
-              const p = productById(l.productId)!
               const packs = acceptedPacks[l.productId] ?? 0
               const short = packs < orderedPacks(l.productId, l.orderedUnits)
               return (
@@ -112,9 +145,9 @@ function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () =>
                   key={l.productId}
                   className="flex items-center justify-between rounded-lg bg-surface-2 px-3 py-2 text-[13px]"
                 >
-                  <span>{p.name}</span>
+                  <span>{byId[l.productId]?.name ?? l.productId}</span>
                   <span className={short ? 'font-bold text-warn' : 'font-bold text-ok'}>
-                    + {packs * p.packSize} u.
+                    + {packs * packSize(l.productId)} u.
                   </span>
                 </div>
               )
@@ -145,7 +178,7 @@ function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () =>
 
       <div className="mt-3 flex flex-col gap-2">
         {delivery.lines.map((l) => {
-          const p = productById(l.productId)!
+          const p = byId[l.productId]
           const ordered = orderedPacks(l.productId, l.orderedUnits)
           const accepted = acceptedPacks[l.productId] ?? 0
           const short = accepted < ordered
@@ -153,9 +186,9 @@ function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () =>
             <Card key={l.productId}>
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14.5px] font-semibold">{p.name}</div>
+                  <div className="text-[14.5px] font-semibold">{p?.name ?? l.productId}</div>
                   <div className="tabnums text-[11px] text-ink-3">
-                    Commandé {formatPacks(l.orderedUnits, p.packSize, p.packLabel)}
+                    Commandé {formatPacks(l.orderedUnits, packSize(l.productId), p?.packLabel ?? 'carton')}
                   </div>
                 </div>
                 <div className="flex items-center overflow-hidden rounded-[11px] border border-line bg-surface-2">
@@ -168,13 +201,9 @@ function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () =>
                   >
                     <Minus size={16} />
                   </button>
-                  <div className="tabnums w-9 text-center text-[16px] font-extrabold">
-                    {accepted}
-                  </div>
+                  <div className="tabnums w-9 text-center text-[16px] font-extrabold">{accepted}</div>
                   <button
-                    onClick={() =>
-                      setAcceptedPacks((a) => ({ ...a, [l.productId]: accepted + 1 }))
-                    }
+                    onClick={() => setAcceptedPacks((a) => ({ ...a, [l.productId]: accepted + 1 }))}
                     className="flex h-9 w-9 items-center justify-center text-crust-ink"
                     aria-label="Plus"
                   >
@@ -185,7 +214,8 @@ function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () =>
 
               <div className="mt-2 flex items-center gap-2">
                 <span className="tabnums text-[11px] text-ink-3">
-                  Accepté {accepted} {plural(p.packLabel, accepted)} · {accepted * p.packSize} u.
+                  Accepté {accepted} {plural(p?.packLabel ?? 'carton', accepted)} ·{' '}
+                  {accepted * packSize(l.productId)} u.
                 </span>
                 {short ? (
                   <Badge tone="warn">manque {ordered - accepted}</Badge>
@@ -216,7 +246,7 @@ function Reception({ delivery, onBack }: { delivery: DemoDelivery; onBack: () =>
         <Button variant="ghost" onClick={onBack}>
           Retour
         </Button>
-        <Button onClick={() => setDone(true)}>Valider la réception</Button>
+        <Button onClick={validate}>Valider la réception</Button>
       </div>
     </AppShell>
   )

@@ -1,19 +1,29 @@
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { PackageMinus, ClipboardList, Truck, Phone, ArrowRight, AlertTriangle } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, SectionTitle, StatTile, Badge } from '@/components/ui'
-import { demoProducts, demoSuppliers } from '@/features/demo/data'
+import { services } from '@/services'
+import { DEMO_NOW } from '@/features/demo/data'
 import { formatDayLong, formatPacks } from '@/lib/format'
 import { supplierPlan, civilToDate } from '@/lib/orderCalendar'
 
 // Démo : « aujourd'hui » figé au vendredi pour illustrer la couverture week-end.
-const today = new Date('2026-07-10T08:00:00+02:00')
+const today = DEMO_NOW
 
 export function DashboardPage() {
   const navigate = useNavigate()
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => services.catalog.listProducts(),
+  })
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: () => services.catalog.listSuppliers(),
+  })
 
-  const atRisk = demoProducts.filter((p) => p.stockUnits < p.minUnits)
-  const suppliersDue = demoSuppliers.filter((s) => s.dueToday)
+  const atRisk = products.filter((p) => p.stockUnits < p.minUnits)
+  const suppliersDue = suppliers.filter((s) => s.dueToday)
 
   return (
     <AppShell eyebrow="Point Chaud" title="Bonjour" subtitle={cap(formatDayLong(today))}>
@@ -78,7 +88,7 @@ export function DashboardPage() {
       {/* Fournisseurs à commander */}
       <SectionTitle>Fournisseurs — à commander</SectionTitle>
       <div className="flex flex-col gap-2">
-        {demoSuppliers.map((s) => {
+        {suppliers.map((s) => {
           const plan = supplierPlan(s.calendar, today)
           const deliv = cap(formatDayLong(civilToDate(plan.d1)))
           return (

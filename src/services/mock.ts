@@ -14,6 +14,7 @@ import type {
   Supplier,
   Prepa,
   ExitLine,
+  ReceptionLine,
 } from '@/services/types'
 
 function familyPosition(name: string): number {
@@ -71,6 +72,18 @@ export const mockServices: DataServices = {
       }
       for (const l of lines) balances[l.productId] = (balances[l.productId] ?? 0) - l.units
       seenBatches.add(batchId)
+    },
+    async recordReception(
+      idempotencyKey: string,
+      _supplierId: string,
+      _orderId: string | null,
+      lines: ReceptionLine[],
+    ): Promise<void> {
+      if (seenBatches.has(idempotencyKey)) return
+      for (const l of lines) {
+        if (l.acceptedUnits > 0) balances[l.productId] = (balances[l.productId] ?? 0) + l.acceptedUnits
+      }
+      seenBatches.add(idempotencyKey)
     },
   },
 }

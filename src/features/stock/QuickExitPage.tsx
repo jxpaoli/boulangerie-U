@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search,
   Check,
@@ -12,13 +13,7 @@ import {
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
-import {
-  demoProducts,
-  demoPrepas,
-  productById,
-  groupByFamily,
-  type DemoPrepa,
-} from '@/features/demo/data'
+import { services, type Product, type Prepa, type ExitLine } from '@/services'
 import { formatPacks, formatTime, plural } from '@/lib/format'
 import { cn } from '@/lib/cn'
 
@@ -34,41 +29,61 @@ interface RecentEntry {
 type Mode = 'standard' | 'new' | 'single'
 const QUICK_QTIES = [1, 2, 5, 10]
 
-interface Line {
-  productId: string
-  units: number
+function uuid(): string {
+  return crypto.randomUUID()
 }
 
 export function QuickExitPage() {
-  const [stock, setStock] = useState<Record<string, number>>(() =>
-    Object.fromEntries(demoProducts.map((p) => [p.id, p.stockUnits])),
-  )
+  const qc = useQueryClient()
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => services.catalog.listProducts(),
+  })
+  const { data: prepas = [] } = useQuery({
+    queryKey: ['prepas'],
+    queryFn: () => services.catalog.listPrepas(),
+  })
+  // prépas créées à la volée (session) en plus des standards
+  const [customPrepas, setCustomPrepas] = useState<Prepa[]>([])
   const [mode, setMode] = useState<Mode>('standard')
   const [recent, setRecent] = useState<RecentEntry[]>([])
-  const [customPrepas, setCustomPrepas] = useState<DemoPrepa[]>([])
 
-  function decrement(lines: Line[]): boolean {
-    const shortfalls = lines.filter((l) => l.units > (stock[l.productId] ?? 0))
-    if (shortfalls.length > 0) {
-      const names = shortfalls
-        .map((l) => `• ${productById(l.productId)?.name} (reste ${stock[l.productId] ?? 0})`)
+  const byId = useMemo(() => {
+    const m: Record<string, Product> = {}
+    for (const p of products) m[p.id] = p
+    return m
+  }, [products])
+  const stock = useMemo(() => {
+    const s: Record<string, number> = {}
+    for (const p of products) s[p.id] = p.stockUnits
+    return s
+  }, [products])
+
+  async function doExit(lines: ExitLine[], force = false): Promise<boolean> {
+    const clean = lines.filter((l) => l.units > 0)
+    if (clean.length === 0) return false
+    try {
+      await services.stock.recordExit(uuid(), clean, undefined, force)
+      await qc.invalidateQueries({ queryKey: ['products'] })
+      return true
+    } catch {
+      const names = clean
+        .filter((l) => l.units > (stock[l.productId] ?? 0))
+        .map((l) => `• ${byId[l.productId]?.name} (reste ${stock[l.productId] ?? 0})`)
         .join('\n')
-      alert(`Stock insuffisant pour :\n${names}\n\nLa sortie ne peut pas rendre le stock négatif.`)
+      alert(`Stock insuffisant :\n${names}\n\nLa sortie ne peut pas rendre le stock négatif.`)
       return false
     }
-    setStock((s) => {
-      const next = { ...s }
-      for (const l of lines) next[l.productId] = (next[l.productId] ?? 0) - l.units
-      return next
-    })
-    return true
   }
 
   function pushRecent(title: string, subtitle: string) {
     const now = new Date()
-    const meta = `${formatTime(now)} · ${CURRENT_USER}`
-    setRecent((r) => [{ id: now.getTime(), title, subtitle, meta }, ...r].slice(0, 6))
+    setRecent((r) =>
+      [{ id: now.getTime(), title, subtitle, meta: `${formatTime(now)} · ${CURRENT_USER}` }, ...r].slice(0, 6),
+    )
   }
+
+  const shortName = (id: string) => (byId[id]?.name ?? '').split(' ').slice(0, 2).join(' ')
 
   return (
     <AppShell eyebrow="Congélateur" title="Sortie" subtitle="Enregistre ce qui sort du congélo">
@@ -85,17 +100,27 @@ export function QuickExitPage() {
       </div>
 
       {mode === 'standard' && (
-        <PrepaMode prepas={[...demoPrepas, ...customPrepas]} onExit={decrement} onDone={pushRecent} />
+        <PrepaMode
+          prepas={[...prepas, ...customPrepas]}
+          byId={byId}
+          onExit={doExit}
+          onDone={pushRecent}
+          shortName={shortName}
+        />
       )}
       {mode === 'new' && (
         <NewLotMode
+          products={products}
           stock={stock}
-          onExit={decrement}
+          onExit={doExit}
           onDone={pushRecent}
-          onSaveStandard={(prepa) => setCustomPrepas((c) => [...c, prepa])}
+          shortName={shortName}
+          onSaveStandard={(p) => setCustomPrepas((c) => [...c, p])}
         />
       )}
-      {mode === 'single' && <SingleMode stock={stock} onExit={decrement} onDone={pushRecent} />}
+      {mode === 'single' && (
+        <SingleMode products={products} stock={stock} onExit={doExit} onDone={pushRecent} />
+      )}
 
       {recent.length > 0 && (
         <>
@@ -147,17 +172,21 @@ function ModeTab({
 
 function PrepaMode({
   prepas,
+  byId,
   onExit,
   onDone,
+  shortName,
 }: {
-  prepas: DemoPrepa[]
-  onExit: (lines: Line[]) => boolean
+  prepas: Prepa[]
+  byId: Record<string, Product>
+  onExit: (lines: ExitLine[]) => Promise<boolean>
   onDone: (title: string, subtitle: string) => void
+  shortName: (id: string) => string
 }) {
-  const [selected, setSelected] = useState<DemoPrepa | null>(null)
+  const [selected, setSelected] = useState<Prepa | null>(null)
   const [qties, setQties] = useState<Record<string, number>>({})
 
-  function open(prepa: DemoPrepa) {
+  function open(prepa: Prepa) {
     setSelected(prepa)
     setQties(Object.fromEntries(prepa.lines.map((l) => [l.productId, l.units])))
   }
@@ -180,6 +209,9 @@ function PrepaMode({
             <ChevronRight size={18} className="text-ink-3" />
           </Card>
         ))}
+        {prepas.length === 0 && (
+          <p className="mt-2 px-1 text-[12px] text-ink-3">Aucune préparation enregistrée.</p>
+        )}
         <p className="mt-2 px-1 text-[11.5px] text-ink-3">
           Une préparation standard sort ton lot habituel d'un coup. Quantités pré-remplies,
           ajustables.
@@ -190,12 +222,11 @@ function PrepaMode({
 
   const total = Object.values(qties).reduce((s, n) => s + n, 0)
 
-  function confirm() {
+  async function confirm() {
     const lines = selected!.lines
       .map((l) => ({ productId: l.productId, units: qties[l.productId] ?? 0 }))
       .filter((l) => l.units > 0)
-    if (lines.length === 0) return
-    if (!onExit(lines)) return
+    if (!(await onExit(lines))) return
     onDone(selected!.name, lines.map((l) => `${shortName(l.productId)} −${l.units}`).join(' · '))
     setSelected(null)
   }
@@ -208,13 +239,13 @@ function PrepaMode({
       </div>
       <div className="mt-3 flex flex-col divide-y divide-line">
         {selected.lines.map((l) => {
-          const p = productById(l.productId)!
+          const p = byId[l.productId]
           const q = qties[l.productId] ?? 0
           return (
             <LineStepper
               key={l.productId}
-              label={p.name}
-              sub={formatPacks(q, p.packSize, p.packLabel)}
+              label={p?.name ?? l.productId}
+              sub={p ? formatPacks(q, p.packSize, p.packLabel) : `${q}`}
               value={q}
               onChange={(n) => setQties((s) => ({ ...s, [l.productId]: n }))}
             />
@@ -237,43 +268,37 @@ function PrepaMode({
 /* ----------------------------- Mode prépa new ----------------------------- */
 
 function NewLotMode({
+  products,
   stock,
   onExit,
   onDone,
   onSaveStandard,
+  shortName,
 }: {
+  products: Product[]
   stock: Record<string, number>
-  onExit: (lines: Line[]) => boolean
+  onExit: (lines: ExitLine[]) => Promise<boolean>
   onDone: (title: string, subtitle: string) => void
-  onSaveStandard: (prepa: DemoPrepa) => void
+  onSaveStandard: (prepa: Prepa) => void
+  shortName: (id: string) => string
 }) {
   const [query, setQuery] = useState('')
-  const [lot, setLot] = useState<Record<string, number>>({}) // en unités
+  const [lot, setLot] = useState<Record<string, number>>({})
   const [saveOpen, setSaveOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
     return q
-      ? demoProducts.filter(
-          (p) => p.name.toLowerCase().includes(q) || p.ref.toLowerCase().includes(q),
-        )
-      : demoProducts
-  }, [query])
+      ? products.filter((p) => p.name.toLowerCase().includes(q) || p.ref.toLowerCase().includes(q))
+      : products
+  }, [query, products])
 
-  const chosen = demoProducts.filter((p) => (lot[p.id] ?? 0) > 0)
+  const chosen = products.filter((p) => (lot[p.id] ?? 0) > 0)
 
-  function addOne(id: string, packSize: number) {
-    setLot((l) => ({ ...l, [id]: (l[id] ?? 0) + packSize }))
-  }
-  function setUnits(id: string, units: number) {
-    setLot((l) => ({ ...l, [id]: Math.max(0, units) }))
-  }
-
-  function sortir() {
+  async function sortir() {
     const lines = chosen.map((p) => ({ productId: p.id, units: lot[p.id] ?? 0 }))
-    if (lines.length === 0) return
-    if (!onExit(lines)) return
+    if (!(await onExit(lines))) return
     onDone('Lot', lines.map((l) => `${shortName(l.productId)} −${l.units}`).join(' · '))
     setLot({})
     setSaveOpen(false)
@@ -305,7 +330,7 @@ function NewLotMode({
                 sub={formatPacks(lot[p.id] ?? 0, p.packSize, p.packLabel)}
                 value={lot[p.id] ?? 0}
                 step={p.packSize}
-                onChange={(n) => setUnits(p.id, n)}
+                onChange={(n) => setLot((l) => ({ ...l, [p.id]: Math.max(0, n) }))}
               />
             ))}
           </div>
@@ -367,12 +392,10 @@ function NewLotMode({
                       </div>
                     </div>
                     {inLot ? (
-                      <Badge tone="crust">
-                        {formatPacks(lot[p.id] ?? 0, p.packSize, p.packLabel)}
-                      </Badge>
+                      <Badge tone="crust">{formatPacks(lot[p.id] ?? 0, p.packSize, p.packLabel)}</Badge>
                     ) : (
                       <button
-                        onClick={() => addOne(p.id, p.packSize)}
+                        onClick={() => setLot((l) => ({ ...l, [p.id]: (l[p.id] ?? 0) + p.packSize }))}
                         className="flex h-9 items-center gap-1 rounded-[11px] bg-crust-soft px-3 text-[13px] font-bold text-crust-ink"
                       >
                         <Plus size={15} /> Ajouter
@@ -392,12 +415,14 @@ function NewLotMode({
 /* ------------------------------ Mode unités ------------------------------- */
 
 function SingleMode({
+  products,
   stock,
   onExit,
   onDone,
 }: {
+  products: Product[]
   stock: Record<string, number>
-  onExit: (lines: Line[]) => boolean
+  onExit: (lines: ExitLine[]) => Promise<boolean>
   onDone: (title: string, subtitle: string) => void
 }) {
   const [query, setQuery] = useState('')
@@ -406,17 +431,17 @@ function SingleMode({
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return demoProducts
-    return demoProducts.filter(
+    if (!q) return products
+    return products.filter(
       (p) => p.name.toLowerCase().includes(q) || p.ref.toLowerCase().includes(q),
     )
-  }, [query])
+  }, [query, products])
 
-  const selected = demoProducts.find((p) => p.id === selectedId) ?? null
+  const selected = products.find((p) => p.id === selectedId) ?? null
 
-  function confirm() {
+  async function confirm() {
     if (!selected) return
-    if (!onExit([{ productId: selected.id, units: qty }])) return
+    if (!(await onExit([{ productId: selected.id, units: qty }]))) return
     onDone(selected.name, `− ${qty} ${plural('unité', qty)}`)
     setSelectedId(null)
     setQty(1)
@@ -578,7 +603,15 @@ function TotalRow({ total }: { total: number }) {
   )
 }
 
-function shortName(productId: string): string {
-  const n = productById(productId)?.name ?? ''
-  return n.split(' ').slice(0, 2).join(' ')
+/** Regroupe par famille (categoryPosition). */
+function groupByFamily(items: Product[]): { family: string; items: Product[] }[] {
+  const map = new Map<string, { position: number; items: Product[] }>()
+  for (const p of items) {
+    const g = map.get(p.category) ?? { position: p.categoryPosition, items: [] }
+    g.items.push(p)
+    map.set(p.category, g)
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[1].position - b[1].position)
+    .map(([family, g]) => ({ family, items: g.items }))
 }
