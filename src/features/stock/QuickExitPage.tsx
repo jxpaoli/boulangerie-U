@@ -1,5 +1,15 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Search, Check, Minus, Plus, PackageMinus, Croissant, ChevronRight } from 'lucide-react'
+import {
+  Search,
+  Check,
+  Minus,
+  Plus,
+  PackageMinus,
+  Croissant,
+  Layers,
+  ChevronRight,
+  Save,
+} from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
 import {
@@ -9,10 +19,9 @@ import {
   groupByFamily,
   type DemoPrepa,
 } from '@/features/demo/data'
-import { formatPacks, formatTime } from '@/lib/format'
+import { formatPacks, formatTime, plural } from '@/lib/format'
 import { cn } from '@/lib/cn'
 
-// Démo : l'utilisateur connecté (viendra de Supabase Auth). Tracé sur chaque sortie.
 const CURRENT_USER = 'Sabrina'
 
 interface RecentEntry {
@@ -22,19 +31,23 @@ interface RecentEntry {
   meta: string
 }
 
-type Mode = 'prepa' | 'single'
+type Mode = 'standard' | 'new' | 'single'
 const QUICK_QTIES = [1, 2, 5, 10]
 
+interface Line {
+  productId: string
+  units: number
+}
+
 export function QuickExitPage() {
-  // stock local (démo) — sera remplacé par le service de mouvements de stock
   const [stock, setStock] = useState<Record<string, number>>(() =>
     Object.fromEntries(demoProducts.map((p) => [p.id, p.stockUnits])),
   )
-  const [mode, setMode] = useState<Mode>('prepa')
+  const [mode, setMode] = useState<Mode>('standard')
   const [recent, setRecent] = useState<RecentEntry[]>([])
+  const [customPrepas, setCustomPrepas] = useState<DemoPrepa[]>([])
 
-  function decrement(lines: { productId: string; units: number }[]): boolean {
-    // vérifie qu'aucune ligne ne rend le stock négatif (V1 : interdit par défaut)
+  function decrement(lines: Line[]): boolean {
     const shortfalls = lines.filter((l) => l.units > (stock[l.productId] ?? 0))
     if (shortfalls.length > 0) {
       const names = shortfalls
@@ -58,26 +71,31 @@ export function QuickExitPage() {
   }
 
   return (
-    <AppShell
-      eyebrow="Congélateur"
-      title="Sortie"
-      subtitle="Enregistre ce qui sort du congélo"
-    >
-      {/* Sélecteur de mode */}
-      <div className="mt-1 grid grid-cols-2 gap-1 rounded-[14px] bg-surface-2 p-1">
-        <ModeTab active={mode === 'prepa'} onClick={() => setMode('prepa')}>
-          <Croissant size={16} /> Préparation
+    <AppShell eyebrow="Congélateur" title="Sortie" subtitle="Enregistre ce qui sort du congélo">
+      <div className="mt-1 grid grid-cols-3 gap-1 rounded-[14px] bg-surface-2 p-1">
+        <ModeTab active={mode === 'standard'} onClick={() => setMode('standard')}>
+          <Croissant size={15} /> Prépa standard
+        </ModeTab>
+        <ModeTab active={mode === 'new'} onClick={() => setMode('new')}>
+          <Layers size={15} /> Prépa new
         </ModeTab>
         <ModeTab active={mode === 'single'} onClick={() => setMode('single')}>
-          <PackageMinus size={16} /> Un produit
+          <PackageMinus size={15} /> Unités
         </ModeTab>
       </div>
 
-      {mode === 'prepa' ? (
-        <PrepaMode onExit={decrement} onDone={pushRecent} />
-      ) : (
-        <SingleMode stock={stock} onExit={decrement} onDone={pushRecent} />
+      {mode === 'standard' && (
+        <PrepaMode prepas={[...demoPrepas, ...customPrepas]} onExit={decrement} onDone={pushRecent} />
       )}
+      {mode === 'new' && (
+        <NewLotMode
+          stock={stock}
+          onExit={decrement}
+          onDone={pushRecent}
+          onSaveStandard={(prepa) => setCustomPrepas((c) => [...c, prepa])}
+        />
+      )}
+      {mode === 'single' && <SingleMode stock={stock} onExit={decrement} onDone={pushRecent} />}
 
       {recent.length > 0 && (
         <>
@@ -116,7 +134,7 @@ function ModeTab({
     <button
       onClick={onClick}
       className={cn(
-        'flex items-center justify-center gap-1.5 rounded-[11px] py-2.5 text-[13px] font-bold',
+        'flex items-center justify-center gap-1 rounded-[11px] px-1 py-2.5 text-[12px] font-bold',
         active ? 'bg-crust text-white' : 'text-ink-2',
       )}
     >
@@ -125,17 +143,18 @@ function ModeTab({
   )
 }
 
-/* ----------------------------- Mode préparation ---------------------------- */
+/* -------------------------- Mode prépa standard --------------------------- */
 
 function PrepaMode({
+  prepas,
   onExit,
   onDone,
 }: {
-  onExit: (lines: { productId: string; units: number }[]) => boolean
+  prepas: DemoPrepa[]
+  onExit: (lines: Line[]) => boolean
   onDone: (title: string, subtitle: string) => void
 }) {
   const [selected, setSelected] = useState<DemoPrepa | null>(null)
-  // quantités éditables de la prépa en cours (productId -> units)
   const [qties, setQties] = useState<Record<string, number>>({})
 
   function open(prepa: DemoPrepa) {
@@ -146,7 +165,7 @@ function PrepaMode({
   if (!selected) {
     return (
       <div className="mt-3 flex flex-col gap-2">
-        {demoPrepas.map((prepa) => (
+        {prepas.map((prepa) => (
           <Card key={prepa.id} className="flex items-center gap-3" onClick={() => open(prepa)}>
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-crust-ink">
               <Croissant size={20} />
@@ -154,15 +173,16 @@ function PrepaMode({
             <div className="min-w-0 flex-1">
               <div className="text-[14.5px] font-semibold">{prepa.name}</div>
               <div className="text-[11px] text-ink-3">
-                {prepa.time} · {prepa.lines.length} produits
+                {prepa.time ? `${prepa.time} · ` : ''}
+                {prepa.lines.length} produits
               </div>
             </div>
             <ChevronRight size={18} className="text-ink-3" />
           </Card>
         ))}
         <p className="mt-2 px-1 text-[11.5px] text-ink-3">
-          Une préparation sort plusieurs produits d'un coup (four ou décongélation). Les quantités
-          sont pré-remplies — tu ajustes si besoin.
+          Une préparation standard sort ton lot habituel d'un coup. Quantités pré-remplies,
+          ajustables.
         </p>
       </div>
     )
@@ -176,10 +196,7 @@ function PrepaMode({
       .filter((l) => l.units > 0)
     if (lines.length === 0) return
     if (!onExit(lines)) return
-    const subtitle = lines
-      .map((l) => `${shortName(l.productId)} −${l.units}`)
-      .join(' · ')
-    onDone(selected!.name, subtitle)
+    onDone(selected!.name, lines.map((l) => `${shortName(l.productId)} −${l.units}`).join(' · '))
     setSelected(null)
   }
 
@@ -187,58 +204,24 @@ function PrepaMode({
     <Card className="mt-3">
       <div className="flex items-center justify-between">
         <div className="text-[16px] font-bold">{selected.name}</div>
-        <Badge tone="crust">{selected.time}</Badge>
+        {selected.time && <Badge tone="crust">{selected.time}</Badge>}
       </div>
-
       <div className="mt-3 flex flex-col divide-y divide-line">
         {selected.lines.map((l) => {
           const p = productById(l.productId)!
           const q = qties[l.productId] ?? 0
           return (
-            <div key={l.productId} className="flex items-center gap-2 py-2.5">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13.5px] font-semibold">{p.name}</div>
-                <div className="tabnums text-[10.5px] text-ink-3">
-                  {formatPacks(q, p.packSize, p.packLabel)}
-                </div>
-              </div>
-              <div className="flex items-center overflow-hidden rounded-[11px] border border-line bg-surface-2">
-                <button
-                  onClick={() => setQties((s) => ({ ...s, [l.productId]: Math.max(0, q - 1) }))}
-                  className="h-9 w-10 text-[18px] font-bold text-crust-ink"
-                  aria-label="Moins"
-                >
-                  −
-                </button>
-                <input
-                  value={q}
-                  onChange={(e) =>
-                    setQties((s) => ({
-                      ...s,
-                      [l.productId]: Math.max(0, parseInt(e.target.value) || 0),
-                    }))
-                  }
-                  inputMode="numeric"
-                  className="tabnums w-12 bg-transparent text-center text-[16px] font-extrabold text-ink"
-                />
-                <button
-                  onClick={() => setQties((s) => ({ ...s, [l.productId]: q + 1 }))}
-                  className="h-9 w-10 text-[18px] font-bold text-crust-ink"
-                  aria-label="Plus"
-                >
-                  +
-                </button>
-              </div>
-            </div>
+            <LineStepper
+              key={l.productId}
+              label={p.name}
+              sub={formatPacks(q, p.packSize, p.packLabel)}
+              value={q}
+              onChange={(n) => setQties((s) => ({ ...s, [l.productId]: n }))}
+            />
           )
         })}
       </div>
-
-      <div className="mt-2 flex items-center justify-between border-t border-dashed border-line pt-3">
-        <span className="text-[12px] text-ink-2">Total sortie</span>
-        <span className="tabnums text-[15px] font-extrabold">{total} unités</span>
-      </div>
-
+      <TotalRow total={total} />
       <div className="mt-4 grid grid-cols-[1fr_2fr] gap-2">
         <Button variant="ghost" onClick={() => setSelected(null)}>
           Retour
@@ -251,7 +234,162 @@ function PrepaMode({
   )
 }
 
-/* ------------------------------ Mode 1 produit ----------------------------- */
+/* ----------------------------- Mode prépa new ----------------------------- */
+
+function NewLotMode({
+  stock,
+  onExit,
+  onDone,
+  onSaveStandard,
+}: {
+  stock: Record<string, number>
+  onExit: (lines: Line[]) => boolean
+  onDone: (title: string, subtitle: string) => void
+  onSaveStandard: (prepa: DemoPrepa) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [lot, setLot] = useState<Record<string, number>>({}) // en unités
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return q
+      ? demoProducts.filter(
+          (p) => p.name.toLowerCase().includes(q) || p.ref.toLowerCase().includes(q),
+        )
+      : demoProducts
+  }, [query])
+
+  const chosen = demoProducts.filter((p) => (lot[p.id] ?? 0) > 0)
+
+  function addOne(id: string, packSize: number) {
+    setLot((l) => ({ ...l, [id]: (l[id] ?? 0) + packSize }))
+  }
+  function setUnits(id: string, units: number) {
+    setLot((l) => ({ ...l, [id]: Math.max(0, units) }))
+  }
+
+  function sortir() {
+    const lines = chosen.map((p) => ({ productId: p.id, units: lot[p.id] ?? 0 }))
+    if (lines.length === 0) return
+    if (!onExit(lines)) return
+    onDone('Lot', lines.map((l) => `${shortName(l.productId)} −${l.units}`).join(' · '))
+    setLot({})
+    setSaveOpen(false)
+    setSaveName('')
+  }
+
+  function save() {
+    if (!saveName.trim()) return
+    onSaveStandard({
+      id: `custom-${new Date().getTime()}`,
+      name: saveName.trim(),
+      time: '',
+      lines: chosen.map((p) => ({ productId: p.id, units: lot[p.id] ?? 0 })),
+    })
+    setSaveOpen(false)
+    setSaveName('')
+  }
+
+  return (
+    <>
+      {chosen.length > 0 && (
+        <Card className="mt-3">
+          <div className="text-[13px] font-bold text-ink-2">Lot en cours</div>
+          <div className="mt-2 flex flex-col divide-y divide-line">
+            {chosen.map((p) => (
+              <LineStepper
+                key={p.id}
+                label={p.name}
+                sub={formatPacks(lot[p.id] ?? 0, p.packSize, p.packLabel)}
+                value={lot[p.id] ?? 0}
+                step={p.packSize}
+                onChange={(n) => setUnits(p.id, n)}
+              />
+            ))}
+          </div>
+          <TotalRow total={chosen.reduce((s, p) => s + (lot[p.id] ?? 0), 0)} />
+          <Button className="mt-3 w-full" onClick={sortir}>
+            <Check size={18} /> Sortir le lot ({chosen.length})
+          </Button>
+          {!saveOpen ? (
+            <button
+              onClick={() => setSaveOpen(true)}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 text-[12px] font-semibold text-ink-2"
+            >
+              <Save size={14} /> Enregistrer comme prépa standard
+            </button>
+          ) : (
+            <div className="mt-2 flex gap-2">
+              <input
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="Nom (ex. « Prépa goûter »)"
+                className="min-w-0 flex-1 rounded-[10px] border border-line bg-surface-2 px-3 py-2 text-[13px]"
+              />
+              <Button variant="soft" onClick={save}>
+                OK
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      <div className="relative mt-3">
+        <Search size={18} className="absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-3" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Ajouter un produit au lot…"
+          className="w-full rounded-[14px] border border-line bg-surface py-3.5 pr-4 pl-11 text-[15px] text-ink placeholder:text-ink-3"
+        />
+      </div>
+
+      <div className="mt-3">
+        {groupByFamily(results).map((g) => (
+          <section key={g.family}>
+            <div className="mx-1 mt-4 mb-2 text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
+              {g.family}
+            </div>
+            <div className="flex flex-col gap-2">
+              {g.items.map((p) => {
+                const inLot = (lot[p.id] ?? 0) > 0
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-3 rounded-[var(--radius-app)] border border-line bg-surface p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[14px] font-semibold">{p.name}</div>
+                      <div className="tabnums text-[11px] text-ink-3">
+                        reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
+                      </div>
+                    </div>
+                    {inLot ? (
+                      <Badge tone="crust">
+                        {formatPacks(lot[p.id] ?? 0, p.packSize, p.packLabel)}
+                      </Badge>
+                    ) : (
+                      <button
+                        onClick={() => addOne(p.id, p.packSize)}
+                        className="flex h-9 items-center gap-1 rounded-[11px] bg-crust-soft px-3 text-[13px] font-bold text-crust-ink"
+                      >
+                        <Plus size={15} /> Ajouter
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </>
+  )
+}
+
+/* ------------------------------ Mode unités ------------------------------- */
 
 function SingleMode({
   stock,
@@ -259,7 +397,7 @@ function SingleMode({
   onDone,
 }: {
   stock: Record<string, number>
-  onExit: (lines: { productId: string; units: number }[]) => boolean
+  onExit: (lines: Line[]) => boolean
   onDone: (title: string, subtitle: string) => void
 }) {
   const [query, setQuery] = useState('')
@@ -279,7 +417,7 @@ function SingleMode({
   function confirm() {
     if (!selected) return
     if (!onExit([{ productId: selected.id, units: qty }])) return
-    onDone(selected.name, `− ${qty} unités`)
+    onDone(selected.name, `− ${qty} ${plural('unité', qty)}`)
     setSelectedId(null)
     setQty(1)
     setQuery('')
@@ -341,7 +479,6 @@ function SingleMode({
       <div className="tabnums mt-0.5 text-[12px] text-ink-2">
         En stock : {formatPacks(stock[selected.id] ?? 0, selected.packSize, selected.packLabel)}
       </div>
-
       <div className="mt-4 flex items-center justify-center gap-3">
         <button
           onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -364,7 +501,6 @@ function SingleMode({
           <Plus size={24} />
         </button>
       </div>
-
       <div className="mt-4 flex justify-center gap-2">
         {QUICK_QTIES.map((n) => (
           <button
@@ -379,7 +515,6 @@ function SingleMode({
           </button>
         ))}
       </div>
-
       <div className="mt-5 grid grid-cols-[1fr_2fr] gap-2">
         <Button variant="ghost" onClick={() => setSelectedId(null)}>
           Annuler
@@ -389,6 +524,57 @@ function SingleMode({
         </Button>
       </div>
     </Card>
+  )
+}
+
+/* -------------------------------- partagés -------------------------------- */
+
+function LineStepper({
+  label,
+  sub,
+  value,
+  step = 1,
+  onChange,
+}: {
+  label: string
+  sub: string
+  value: number
+  step?: number
+  onChange: (n: number) => void
+}) {
+  return (
+    <div className="flex items-center gap-2 py-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13.5px] font-semibold">{label}</div>
+        <div className="tabnums text-[10.5px] text-ink-3">{sub}</div>
+      </div>
+      <div className="flex items-center overflow-hidden rounded-[11px] border border-line bg-surface-2">
+        <button
+          onClick={() => onChange(Math.max(0, value - step))}
+          className="flex h-9 w-10 items-center justify-center text-crust-ink"
+          aria-label="Moins"
+        >
+          <Minus size={16} />
+        </button>
+        <div className="tabnums w-10 text-center text-[15px] font-extrabold">{value}</div>
+        <button
+          onClick={() => onChange(value + step)}
+          className="flex h-9 w-10 items-center justify-center text-crust-ink"
+          aria-label="Plus"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TotalRow({ total }: { total: number }) {
+  return (
+    <div className="mt-2 flex items-center justify-between border-t border-dashed border-line pt-3">
+      <span className="text-[12px] text-ink-2">Total sortie</span>
+      <span className="tabnums text-[15px] font-extrabold">{total} unités</span>
+    </div>
   )
 }
 

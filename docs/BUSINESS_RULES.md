@@ -234,13 +234,15 @@ four : certains produits sont juste **mis à décongeler**. Pour le stock, **cui
 décongélation, c'est identique** : sorti du congélateur = décompté (§1). L'application
 **ne distingue pas** four / décongélation (décision : inutile en V1).
 
-Fonctionnement :
-- Une **préparation type** (modèle) = un nom + une liste de produits avec quantités
-  par défaut (`prep-…`). Ex. « Prépa du matin » = 48 baguettes + 120 croissants + 20 pains.
-- La responsable sélectionne la préparation → quantités **pré-remplies**, **ajustables**
-  ce jour-là → **une seule validation** sort tout.
-- Une **préparation libre** (composée à la volée) reste possible, ainsi que la
-  **sortie d'un seul produit**.
+La sortie se fait le plus souvent **par lot**. L'écran Sortie propose **3 modes** :
+
+1. **Prépa standard** — le lot pré-formaté fait quasi tout le temps (modèle enregistré :
+   nom + produits + quantités par défaut, `prep-…`). Sélection → quantités pré-remplies,
+   ajustables → une seule validation sort tout. Ex. « Prépa du matin ».
+2. **Prépa new** — un lot **composé sur le moment** (parce qu'on voit qu'on va manquer) :
+   on ajoute des produits + quantités, on sort le lot. Optionnellement **enregistrable
+   comme prépa standard** s'il revient souvent.
+3. **Unités** — sortie d'**un seul produit** (ex. une baguette encore congelée pour un client).
 - Côté journal : une préparation crée **un mouvement `sortie` par produit**, mais tous
   **rattachés à la même préparation** (id + libellé + horodatage). Bénéfices : traçabilité,
   **annulation groupée** de toute la préparation, et prévision de conso plus juste
