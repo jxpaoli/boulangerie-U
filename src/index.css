@@ -1,161 +1,94 @@
 @import 'tailwindcss';
 
-/*
-  Design system « Point Chaud »
-  Palette chaude ambré/croûte, neutres biaisés vers l'accent — reprise de la maquette validée.
-  Thèmes clair + sombre pilotés par variables CSS (media query + data-theme).
-*/
-
+/* Point Chaud — "Night Shift" design system. */
 :root {
-  --c-bg: #f3ece1;
+  --c-bg: #f1f3f9;
   --c-surface: #ffffff;
-  --c-surface-2: #faf4ea;
-  --c-line: #e7dbc9;
-  --c-ink: #241c12;
-  --c-ink-2: #6b5d48;
-  --c-ink-3: #9a8b72;
-  --c-crust: #c0721a; /* accent : action */
-  --c-crust-ink: #7a4610;
-  --c-crust-soft: #f6e4cc;
-  --c-ok: #3b7a4b; /* couvert / conforme */
-  --c-ok-soft: #dfeedf;
-  --c-warn: #b5471c; /* plafonné / alerte / manque */
-  --c-warn-soft: #f7decf;
-  --c-danger: #b3261e;
-  --c-danger-soft: #f7d9d6;
-  --shadow: 0 10px 30px rgba(40, 28, 12, 0.14);
-  --radius: 16px;
+  --c-surface-2: #e9edf7;
+  --c-line: #dbe1ee;
+  --c-ink: #101322;
+  --c-ink-2: #5d657a;
+  --c-ink-3: #8a93a8;
+  --c-crust: #5b5cf0;
+  --c-crust-ink: #3738b8;
+  --c-crust-soft: #e8e8ff;
+  --c-ok: #00a77c;
+  --c-ok-soft: #dff8ef;
+  --c-warn: #f05252;
+  --c-warn-soft: #ffe7e7;
+  --c-danger: #e8326f;
+  --c-danger-soft: #ffe3ed;
+  --shadow: 0 24px 70px rgba(28, 35, 68, 0.15);
+  --radius: 22px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --c-bg: #100c08;
-    --c-surface: #1c1710;
-    --c-surface-2: #241d14;
-    --c-line: #372c1e;
-    --c-ink: #f4ecdf;
-    --c-ink-2: #b7a78d;
-    --c-ink-3: #83745c;
-    --c-crust: #e4922f;
-    --c-crust-ink: #f3c787;
-    --c-crust-soft: #3a2a15;
-    --c-ok: #6fb980;
-    --c-ok-soft: #20301f;
-    --c-warn: #e9734a;
-    --c-warn-soft: #3a2016;
-    --c-danger: #f0857c;
-    --c-danger-soft: #3a1a17;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    --c-bg: #080a12;
+    --c-surface: #111522;
+    --c-surface-2: #181d2d;
+    --c-line: #262d40;
+    --c-ink: #f7f8fc;
+    --c-ink-2: #aab2c6;
+    --c-ink-3: #69738c;
+    --c-crust: #7c7cff;
+    --c-crust-ink: #b7b7ff;
+    --c-crust-soft: #24274a;
+    --c-ok: #42d6ad;
+    --c-ok-soft: #112f2b;
+    --c-warn: #ff6b6b;
+    --c-warn-soft: #381d27;
+    --c-danger: #ff5c93;
+    --c-danger-soft: #3b1928;
+    --shadow: 0 26px 80px rgba(0, 0, 0, 0.5);
   }
 }
 
-/* Le toggle de thème stampe data-theme sur <html> et doit gagner sur la media query */
 :root[data-theme='light'] {
-  --c-bg: #f3ece1;
-  --c-surface: #ffffff;
-  --c-surface-2: #faf4ea;
-  --c-line: #e7dbc9;
-  --c-ink: #241c12;
-  --c-ink-2: #6b5d48;
-  --c-ink-3: #9a8b72;
-  --c-crust: #c0721a;
-  --c-crust-ink: #7a4610;
-  --c-crust-soft: #f6e4cc;
-  --c-ok: #3b7a4b;
-  --c-ok-soft: #dfeedf;
-  --c-warn: #b5471c;
-  --c-warn-soft: #f7decf;
-  --c-danger: #b3261e;
-  --c-danger-soft: #f7d9d6;
-  --shadow: 0 10px 30px rgba(40, 28, 12, 0.14);
+  --c-bg: #f1f3f9; --c-surface: #ffffff; --c-surface-2: #e9edf7; --c-line: #dbe1ee;
+  --c-ink: #101322; --c-ink-2: #5d657a; --c-ink-3: #8a93a8;
+  --c-crust: #5b5cf0; --c-crust-ink: #3738b8; --c-crust-soft: #e8e8ff;
+  --c-ok: #00a77c; --c-ok-soft: #dff8ef; --c-warn: #f05252; --c-warn-soft: #ffe7e7;
+  --c-danger: #e8326f; --c-danger-soft: #ffe3ed; --shadow: 0 24px 70px rgba(28,35,68,.15);
 }
 
 :root[data-theme='dark'] {
-  --c-bg: #100c08;
-  --c-surface: #1c1710;
-  --c-surface-2: #241d14;
-  --c-line: #372c1e;
-  --c-ink: #f4ecdf;
-  --c-ink-2: #b7a78d;
-  --c-ink-3: #83745c;
-  --c-crust: #e4922f;
-  --c-crust-ink: #f3c787;
-  --c-crust-soft: #3a2a15;
-  --c-ok: #6fb980;
-  --c-ok-soft: #20301f;
-  --c-warn: #e9734a;
-  --c-warn-soft: #3a2016;
-  --c-danger: #f0857c;
-  --c-danger-soft: #3a1a17;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --c-bg: #080a12; --c-surface: #111522; --c-surface-2: #181d2d; --c-line: #262d40;
+  --c-ink: #f7f8fc; --c-ink-2: #aab2c6; --c-ink-3: #69738c;
+  --c-crust: #7c7cff; --c-crust-ink: #b7b7ff; --c-crust-soft: #24274a;
+  --c-ok: #42d6ad; --c-ok-soft: #112f2b; --c-warn: #ff6b6b; --c-warn-soft: #381d27;
+  --c-danger: #ff5c93; --c-danger-soft: #3b1928; --shadow: 0 26px 80px rgba(0,0,0,.5);
 }
 
-/* Expose les tokens comme couleurs Tailwind (theme-réactives via @theme inline) */
 @theme inline {
-  --color-bg: var(--c-bg);
-  --color-surface: var(--c-surface);
-  --color-surface-2: var(--c-surface-2);
-  --color-line: var(--c-line);
-  --color-ink: var(--c-ink);
-  --color-ink-2: var(--c-ink-2);
-  --color-ink-3: var(--c-ink-3);
-  --color-crust: var(--c-crust);
-  --color-crust-ink: var(--c-crust-ink);
-  --color-crust-soft: var(--c-crust-soft);
-  --color-ok: var(--c-ok);
-  --color-ok-soft: var(--c-ok-soft);
-  --color-warn: var(--c-warn);
-  --color-warn-soft: var(--c-warn-soft);
-  --color-danger: var(--c-danger);
-  --color-danger-soft: var(--c-danger-soft);
-
-  --radius-app: var(--radius);
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --color-bg: var(--c-bg); --color-surface: var(--c-surface); --color-surface-2: var(--c-surface-2);
+  --color-line: var(--c-line); --color-ink: var(--c-ink); --color-ink-2: var(--c-ink-2);
+  --color-ink-3: var(--c-ink-3); --color-crust: var(--c-crust); --color-crust-ink: var(--c-crust-ink);
+  --color-crust-soft: var(--c-crust-soft); --color-ok: var(--c-ok); --color-ok-soft: var(--c-ok-soft);
+  --color-warn: var(--c-warn); --color-warn-soft: var(--c-warn-soft); --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft); --radius-app: var(--radius);
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  margin: 0;
-  min-height: 100vh;
-  /* jamais de scroll horizontal */
-  max-width: 100%;
-  overflow-x: hidden;
-  overscroll-behavior-x: none;
-}
-
+* { box-sizing: border-box; min-width: 0; }
+html, body, #root { margin: 0; min-height: 100vh; max-width: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
 body {
-  background: var(--c-bg);
-  color: var(--c-ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -webkit-tap-highlight-color: transparent;
+  background: var(--c-bg); color: var(--c-ink); font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
 }
-
-/* évite qu'un enfant flex/grid pousse la largeur au-delà de l'écran */
-* {
-  min-width: 0;
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(circle at 15% -10%, color-mix(in srgb, var(--c-crust) 18%, transparent), transparent 34%),
+    radial-gradient(circle at 105% 22%, color-mix(in srgb, var(--c-danger) 10%, transparent), transparent 28%);
 }
-
-/* Chiffres alignés partout où on compare des quantités */
-.tabnums {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Focus clavier visible (accessibilité) */
-:focus-visible {
-  outline: 2px solid var(--c-crust);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+button, a { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+.tabnums { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--c-crust); outline-offset: 3px; }
+.glass { background: color-mix(in srgb, var(--c-surface) 82%, transparent); backdrop-filter: blur(22px) saturate(140%); }
+.wow-enter { animation: wow-enter .55s cubic-bezier(.2,.8,.2,1) both; }
+.wow-enter-2 { animation: wow-enter .55s .08s cubic-bezier(.2,.8,.2,1) both; }
+.wow-enter-3 { animation: wow-enter .55s .16s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes wow-enter { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }

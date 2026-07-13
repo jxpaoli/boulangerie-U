@@ -7,8 +7,10 @@ import {
   Truck,
   Snowflake,
   Moon,
+  Sun,
   LogOut,
   Settings,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useTheme } from '@/lib/theme'
@@ -35,38 +37,38 @@ export function AppShell({
   children: ReactNode
   action?: ReactNode
 }) {
-  const { toggle } = useTheme()
+  const { theme, toggle } = useTheme()
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[480px] flex-col bg-bg">
-      <header className="flex items-end justify-between gap-3 px-4 pt-8 pb-3">
+    <div className="relative mx-auto flex min-h-dvh max-w-[560px] flex-col">
+      <header className="flex items-end justify-between gap-3 px-5 pt-8 pb-4">
         <div className="min-w-0">
           {eyebrow && (
-            <div className="text-[10.5px] font-bold tracking-[0.14em] text-crust uppercase">
-              {eyebrow}
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-black tracking-[0.2em] text-crust uppercase">
+              <Sparkles size={11} /> {eyebrow}
             </div>
           )}
-          <h1 className="mt-0.5 text-[22px] leading-tight font-bold tracking-tight text-balance">
+          <h1 className="text-[28px] leading-none font-black tracking-[-0.04em] text-balance">
             {title}
           </h1>
-          {subtitle && <div className="mt-0.5 text-[12px] text-ink-2">{subtitle}</div>}
+          {subtitle && <div className="mt-1.5 text-[12px] font-medium text-ink-2">{subtitle}</div>}
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           {action}
           <button
             onClick={toggle}
             aria-label="Changer de thème"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink-2"
+            className="glass flex h-10 w-10 items-center justify-center rounded-2xl border border-line/80 text-ink-2 shadow-sm transition active:scale-95"
           >
-            <Moon size={17} />
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
           </button>
           {user && (
             <div className="relative">
               <button
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-crust text-[13px] font-extrabold text-white"
+                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ink text-[13px] font-black text-bg shadow-lg transition active:scale-95"
                 aria-label="Menu utilisateur"
               >
                 {user.name[0]?.toUpperCase()}
@@ -74,7 +76,7 @@ export function AppShell({
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute top-full right-0 z-40 mt-1.5 w-56 overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow)]">
+                  <div className="glass absolute top-full right-0 z-40 mt-2 w-60 overflow-hidden rounded-[20px] border border-line p-1.5 shadow-[var(--shadow)]">
                     <div className="border-b border-line px-3.5 py-2.5">
                       <div className="text-[13px] font-bold">{user.name}</div>
                       <div className="text-[11px] text-ink-3 capitalize">{user.role}</div>
@@ -107,10 +109,10 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="flex-1 px-4 pb-28">{children}</main>
+      <main className="flex-1 px-5 pb-32">{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-[480px] border-t border-line bg-surface/95 px-1.5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
-        <div className="flex">
+      <nav className="glass fixed inset-x-3 bottom-3 z-20 mx-auto max-w-[520px] rounded-[24px] border border-line/80 p-1.5 shadow-[0_18px_50px_rgba(10,15,35,.24)]">
+        <div className="flex gap-1">
           {NAV.map((item) => {
             const { to, label, icon: Icon } = item
             const end = 'end' in item ? item.end : false
@@ -121,12 +123,12 @@ export function AppShell({
               end={end}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-1 flex-col items-center gap-[3px] py-1 text-[10px] font-semibold',
-                  isActive ? 'text-crust' : 'text-ink-3',
+                  'relative flex flex-1 flex-col items-center gap-[3px] rounded-[18px] py-2 text-[9.5px] font-bold transition-all',
+                  isActive ? 'bg-ink text-bg shadow-md' : 'text-ink-3 hover:text-ink',
                 )
               }
             >
-              <Icon size={22} strokeWidth={1.9} />
+              <Icon size={20} strokeWidth={2.1} />
               {label}
             </NavLink>
             )

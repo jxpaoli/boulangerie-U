@@ -14,8 +14,8 @@ export function Card({
     <div
       onClick={onClick}
       className={cn(
-        'rounded-[var(--radius-app)] border border-line bg-surface p-4',
-        onClick && 'cursor-pointer',
+        'rounded-[var(--radius-app)] border border-line/80 bg-surface p-4 shadow-[0_8px_30px_rgba(30,38,70,.05)]',
+        onClick && 'cursor-pointer transition duration-200 active:scale-[.985]',
         className,
       )}
     >
@@ -26,7 +26,7 @@ export function Card({
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mx-1 mt-6 mb-2 text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
+    <h2 className="mx-1 mt-7 mb-2.5 text-[10px] font-black tracking-[0.18em] text-ink-3 uppercase">
       {children}
     </h2>
   )
@@ -54,7 +54,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-bold whitespace-nowrap',
+        'inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black tracking-wide whitespace-nowrap',
         toneMap[tone],
         className,
       )}
@@ -80,7 +80,7 @@ export function Button({
   disabled?: boolean
 }) {
   const variants = {
-    primary: 'bg-crust text-white',
+    primary: 'bg-ink text-bg shadow-[0_12px_30px_rgba(15,18,35,.25)]',
     soft: 'bg-crust-soft text-crust-ink',
     ghost: 'bg-surface border border-line text-ink',
   }
@@ -90,7 +90,7 @@ export function Button({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-[13px] px-4 py-3.5 text-[15px] font-extrabold transition active:scale-[0.99] disabled:opacity-50',
+        'inline-flex items-center justify-center gap-2 rounded-[16px] px-4 py-3.5 text-[15px] font-black transition active:scale-[0.98] disabled:opacity-50',
         variants[variant],
         className,
       )}
@@ -111,9 +111,9 @@ export function StatTile({
 }) {
   const color = tone === 'warn' ? 'text-warn' : tone === 'ok' ? 'text-ok' : 'text-crust'
   return (
-    <div className="rounded-2xl border border-line bg-surface p-[13px]">
-      <div className={cn('tabnums text-[27px] leading-none font-extrabold', color)}>{n}</div>
-      <div className="mt-[5px] text-[11.5px] leading-tight text-ink-2">{label}</div>
+    <div className="rounded-[20px] border border-line/80 bg-surface p-4 shadow-[0_8px_30px_rgba(30,38,70,.05)]">
+      <div className={cn('tabnums text-[32px] leading-none font-black tracking-[-.06em]', color)}>{n}</div>
+      <div className="mt-2 text-[11px] leading-tight font-medium text-ink-2">{label}</div>
     </div>
   )
 }
