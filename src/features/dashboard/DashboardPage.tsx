@@ -4,12 +4,10 @@ import { PackageMinus, ClipboardList, Truck, Phone, ArrowRight, AlertTriangle } 
 import { AppShell } from '@/components/AppShell'
 import { Card, SectionTitle, StatTile, Badge } from '@/components/ui'
 import { services } from '@/services'
-import { DEMO_NOW } from '@/features/demo/data'
 import { formatDayLong, formatPacks } from '@/lib/format'
 import { supplierPlan, civilToDate } from '@/lib/orderCalendar'
 
-// Démo : « aujourd'hui » figé au vendredi pour illustrer la couverture week-end.
-const today = DEMO_NOW
+const today = new Date()
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -33,11 +31,12 @@ export function DashboardPage() {
         style={{ boxShadow: '0 8px 20px rgba(150,80,20,.32)' }}
       >
         <div className="text-[11px] font-bold tracking-[0.12em] uppercase opacity-85">
-          Aujourd'hui · gros week-end
+          {suppliersDue.length > 0 ? `${suppliersDue.length} commande(s) aujourd'hui` : 'Aucune commande aujourd’hui'}
         </div>
         <h2 className="mt-1 text-[19px] font-bold">Commande à préparer</h2>
         <p className="mt-0.5 text-[12.5px] leading-snug opacity-90">
-          Metro et Davigel ne livrent pas sam. &amp; dim. — la commande couvre jusqu'à lundi.
+          Quantités calculées pour couvrir jusqu'à la livraison d'après la prochaine (ton filet +1
+          livraison).
         </p>
         <button
           onClick={() => navigate('/commandes')}

@@ -18,6 +18,10 @@ export function ReceptionsPage() {
     queryFn: () => services.catalog.listSuppliers(),
   })
 
+  // en vrai (Supabase), les livraisons viennent des commandes envoyées (à venir).
+  // en démo (mock), on montre des livraisons d'exemple.
+  const deliveries = services.source === 'mock' ? demoDeliveries : []
+
   const byId = useMemo(() => {
     const m: Record<string, Product> = {}
     for (const p of products) m[p.id] = p
@@ -37,13 +41,13 @@ export function ReceptionsPage() {
 
   return (
     <AppShell eyebrow="Réception" title="Livraisons attendues" subtitle="Vendredi 10 juillet">
-      {demoDeliveries.length === 0 ? (
+      {deliveries.length === 0 ? (
         <div className="mt-8 text-center text-[13px] text-ink-3">
           Aucune livraison à réceptionner.
         </div>
       ) : (
         <div className="mt-2 flex flex-col gap-2">
-          {demoDeliveries.map((d) => (
+          {deliveries.map((d) => (
             <Card key={d.id} className="flex items-center gap-3" onClick={() => setSelected(d)}>
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-crust-ink">
                 <Truck size={20} />

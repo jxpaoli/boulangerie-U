@@ -15,7 +15,6 @@ import {
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge, Button } from '@/components/ui'
 import { services, type Supplier, type Product } from '@/services'
-import { DEMO_NOW } from '@/features/demo/data'
 import {
   supplierPlan,
   coverageEnd,
@@ -66,9 +65,10 @@ interface OrderMeta {
 }
 
 function orderMeta(supplier: Supplier): OrderMeta {
-  const now = toParisCivil(DEMO_NOW)
-  const plan = supplierPlan(supplier.calendar, DEMO_NOW)
-  const cov = coverageEnd(supplier.calendar, DEMO_NOW, SAFETY_DELIVERIES)
+  const nowDate = new Date()
+  const now = toParisCivil(nowDate)
+  const plan = supplierPlan(supplier.calendar, nowDate)
+  const cov = coverageEnd(supplier.calendar, nowDate, SAFETY_DELIVERIES)
   return {
     now,
     d1: plan.d1,
@@ -120,7 +120,7 @@ export function OrdersPage() {
     )
 
   return (
-    <AppShell eyebrow="Commande" title="Commandes du jour" subtitle="Vendredi 10 juillet">
+    <AppShell eyebrow="Commande" title="Commandes du jour" subtitle={cap(formatDayLong(new Date()))}>
       <div className="mt-2 flex flex-col gap-2">
         {dueSuppliers.map((s) => {
           const meta = orderMeta(s)
@@ -514,7 +514,11 @@ function ExportView({
   const [copied, setCopied] = useState(false)
 
   const text = useMemo(() => {
-    const head = [`Commande ${supplier.name} — vendredi 10 juillet`, `À livrer ${meta.d1Label}`, '']
+    const head = [
+      `Commande ${supplier.name} — ${cap(formatDayLong(new Date()))}`,
+      `À livrer ${meta.d1Label}`,
+      '',
+    ]
     const body = products
       .filter((p) => packsFor(p) > 0)
       .map((p) => {
