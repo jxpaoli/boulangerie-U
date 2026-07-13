@@ -29,6 +29,7 @@ export interface Product {
   stockUnits: number
   minUnits: number
   maxUnits: number
+  isFavorite: boolean
   /** conso par jour de semaine (0=lundi) */
   conso: number[]
 }
@@ -144,6 +145,7 @@ export interface CategoryInput {
 
 export interface AdminService {
   saveProduct(p: ProductInput): Promise<void>
+  setProductFavorite(id: string, isFavorite: boolean): Promise<void>
   deleteProduct(id: string): Promise<void>
   saveSupplier(s: SupplierInput): Promise<void>
   deleteSupplier(id: string): Promise<void>

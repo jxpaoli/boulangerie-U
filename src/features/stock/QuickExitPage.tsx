@@ -10,6 +10,7 @@ import {
   Layers,
   ChevronRight,
   Save,
+  Star,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
@@ -294,6 +295,11 @@ function NewLotMode({
       ? products.filter((p) => p.name.toLowerCase().includes(q) || p.ref.toLowerCase().includes(q))
       : products
   }, [query, products])
+  const favorites = useMemo(
+    () => (query.trim() ? [] : favoriteProducts(products)),
+    [query, products],
+  )
+  const catalogResults = query.trim() ? results : results.filter((product) => !product.isFavorite)
 
   const chosen = products.filter((p) => (lot[p.id] ?? 0) > 0)
 
@@ -373,34 +379,36 @@ function NewLotMode({
       </div>
 
       <div className="mt-1">
-        {groupByFamily(results).map((g) => (
-          <FamilySection key={g.family} title={g.family} count={g.items.length}>
-            {g.items.map((p) => {
-              const inLot = (lot[p.id] ?? 0) > 0
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-3 rounded-[var(--radius-app)] border border-line bg-surface p-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-semibold">{p.name}</div>
-                    <div className="tabnums text-[11px] text-ink-3">
-                      reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
-                    </div>
-                  </div>
-                  {inLot ? (
-                    <Badge tone="crust">{formatPacks(lot[p.id] ?? 0, p.packSize, p.packLabel)}</Badge>
-                  ) : (
-                    <button
-                      onClick={() => setLot((l) => ({ ...l, [p.id]: (l[p.id] ?? 0) + p.packSize }))}
-                      className="flex h-9 items-center gap-1 rounded-[11px] bg-crust-soft px-3 text-[13px] font-bold text-crust-ink"
-                    >
-                      <Plus size={15} /> Ajouter
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+        {favorites.length > 0 && (
+          <FamilySection title="Favoris" count={favorites.length} compact>
+            {favorites.map((p) => (
+              <AddProductRow
+                key={p.id}
+                product={p}
+                stockUnits={stock[p.id] ?? 0}
+                units={lot[p.id] ?? 0}
+                onAdd={() => setLot((l) => ({ ...l, [p.id]: (l[p.id] ?? 0) + p.packSize }))}
+              />
+            ))}
+          </FamilySection>
+        )}
+        {groupByFamily(catalogResults).map((g) => (
+          <FamilySection
+            key={g.family}
+            title={g.family}
+            count={g.items.length}
+            compact
+            defaultOpen={query.trim() !== ''}
+          >
+            {g.items.map((p) => (
+              <AddProductRow
+                key={p.id}
+                product={p}
+                stockUnits={stock[p.id] ?? 0}
+                units={lot[p.id] ?? 0}
+                onAdd={() => setLot((l) => ({ ...l, [p.id]: (l[p.id] ?? 0) + p.packSize }))}
+              />
+            ))}
           </FamilySection>
         ))}
       </div>
@@ -432,6 +440,11 @@ function SingleMode({
       (p) => p.name.toLowerCase().includes(q) || p.ref.toLowerCase().includes(q),
     )
   }, [query, products])
+  const favorites = useMemo(
+    () => (query.trim() ? [] : favoriteProducts(products)),
+    [query, products],
+  )
+  const catalogResults = query.trim() ? results : results.filter((product) => !product.isFavorite)
 
   const selected = products.find((p) => p.id === selectedId) ?? null
 
@@ -457,25 +470,39 @@ function SingleMode({
           />
         </div>
         <div className="mt-1">
-          {groupByFamily(results).map((g) => (
-            <FamilySection key={g.family} title={g.family} count={g.items.length}>
-              {g.items.map((p) => (
-                <Card
+          {favorites.length > 0 && (
+            <FamilySection title="Favoris" count={favorites.length} compact>
+              {favorites.map((p) => (
+                <SingleProductRow
                   key={p.id}
-                  className="flex items-center gap-3"
-                  onClick={() => {
+                  product={p}
+                  stockUnits={stock[p.id] ?? 0}
+                  onSelect={() => {
                     setSelectedId(p.id)
                     setQty(1)
                   }}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
-                    <div className="tabnums text-[11px] text-ink-3">
-                      Réf {p.ref} · reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
-                    </div>
-                  </div>
-                  <PackageMinus size={20} className="text-crust" />
-                </Card>
+                />
+              ))}
+            </FamilySection>
+          )}
+          {groupByFamily(catalogResults).map((g) => (
+            <FamilySection
+              key={g.family}
+              title={g.family}
+              count={g.items.length}
+              compact
+              defaultOpen={query.trim() !== ''}
+            >
+              {g.items.map((p) => (
+                <SingleProductRow
+                  key={p.id}
+                  product={p}
+                  stockUnits={stock[p.id] ?? 0}
+                  onSelect={() => {
+                    setSelectedId(p.id)
+                    setQty(1)
+                  }}
+                />
               ))}
             </FamilySection>
           ))}
@@ -592,6 +619,75 @@ function TotalRow({ total }: { total: number }) {
       <span className="tabnums text-[15px] font-extrabold">{total} unités</span>
     </div>
   )
+}
+
+function AddProductRow({
+  product,
+  stockUnits,
+  units,
+  onAdd,
+}: {
+  product: Product
+  stockUnits: number
+  units: number
+  onAdd: () => void
+}) {
+  return (
+    <div className="flex h-12 items-center gap-2.5 px-2.5">
+      {product.isFavorite && <Star size={14} className="flex-shrink-0 fill-crust text-crust" />}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13.5px] font-semibold">{product.name}</div>
+        <div className="tabnums truncate text-[10px] text-ink-3">
+          reste {formatPacks(stockUnits, product.packSize, product.packLabel)}
+        </div>
+      </div>
+      {units > 0 ? (
+        <Badge tone="crust" className="px-2 py-0.5">
+          {formatPacks(units, product.packSize, product.packLabel)}
+        </Badge>
+      ) : (
+        <button
+          onClick={onAdd}
+          className="flex h-8 items-center gap-1 rounded-[9px] bg-crust-soft px-2.5 text-[12px] font-bold text-crust-ink"
+        >
+          <Plus size={14} /> Ajouter
+        </button>
+      )}
+    </div>
+  )
+}
+
+function SingleProductRow({
+  product,
+  stockUnits,
+  onSelect,
+}: {
+  product: Product
+  stockUnits: number
+  onSelect: () => void
+}) {
+  return (
+    <button onClick={onSelect} className="flex h-12 w-full items-center gap-2.5 px-2.5 text-left">
+      {product.isFavorite && <Star size={14} className="flex-shrink-0 fill-crust text-crust" />}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13.5px] font-semibold">{product.name}</div>
+        <div className="tabnums truncate text-[10px] text-ink-3">
+          Réf {product.ref} · reste {formatPacks(stockUnits, product.packSize, product.packLabel)}
+        </div>
+      </div>
+      <PackageMinus size={17} className="flex-shrink-0 text-crust" />
+    </button>
+  )
+}
+
+function favoriteProducts(products: Product[]): Product[] {
+  return products
+    .filter((product) => product.isFavorite)
+    .sort(
+      (a, b) =>
+        b.conso.reduce((sum, units) => sum + units, 0) -
+          a.conso.reduce((sum, units) => sum + units, 0) || a.name.localeCompare(b.name),
+    )
 }
 
 /** Regroupe par famille (categoryPosition). */

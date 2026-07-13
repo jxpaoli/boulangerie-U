@@ -33,6 +33,12 @@ const balances: Record<string, number> = Object.fromEntries(
 )
 // idempotence : lots déjà enregistrés
 const seenBatches = new Set<string>()
+const mockFavorites = new Set(
+  [...demoProducts]
+    .sort((a, b) => b.conso.reduce((sum, n) => sum + n, 0) - a.conso.reduce((sum, n) => sum + n, 0))
+    .slice(0, 8)
+    .map((product) => product.id),
+)
 const mockOrders: PurchaseOrder[] = demoDeliveries.map((d, index) => ({
   id: d.id,
   supplierId: d.supplierId,
@@ -72,6 +78,7 @@ function toProduct(p: (typeof demoProducts)[number]): Product {
     stockUnits: balances[p.id] ?? 0,
     minUnits: p.minUnits,
     maxUnits: p.maxUnits,
+    isFavorite: mockFavorites.has(p.id),
     conso: p.conso,
   }
 }
@@ -162,6 +169,10 @@ export const mockServices: DataServices = {
   // En démo, l'administration ne persiste pas (l'admin réel est sur Supabase).
   admin: {
     async saveProduct() {},
+    async setProductFavorite(id, isFavorite) {
+      if (isFavorite) mockFavorites.add(id)
+      else mockFavorites.delete(id)
+    },
     async deleteProduct() {},
     async saveSupplier() {},
     async deleteSupplier() {},

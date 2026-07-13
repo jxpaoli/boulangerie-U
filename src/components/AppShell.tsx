@@ -45,14 +45,14 @@ export function AppShell({
   const [menuOpen, setMenuOpen] = useState(false)
   return (
     <div className="relative mx-auto flex min-h-dvh max-w-[560px] flex-col">
-      <header className="flex items-end justify-between gap-3 px-5 pt-8 pb-4">
+      <header className="flex items-end justify-between gap-3 px-4 pt-5 pb-3">
         <div className="min-w-0">
           {eyebrow && (
             <div className="mb-1 flex items-center gap-1.5 text-[10px] font-black tracking-[0.2em] text-crust uppercase">
               <Sparkles size={11} /> {eyebrow}
             </div>
           )}
-          <h1 className="text-[28px] leading-none font-black tracking-[-0.04em] text-balance">
+          <h1 className="text-[25px] leading-none font-black tracking-[-0.04em] text-balance">
             {title}
           </h1>
           {subtitle && <div className="mt-1.5 text-[12px] font-medium text-ink-2">{subtitle}</div>}
@@ -111,7 +111,7 @@ export function AppShell({
         </div>
       </header>
 
-      <main className={cn('flex-1 px-5', compact ? 'pb-24' : 'pb-32')}>{children}</main>
+      <main className={cn('flex-1 px-4', compact ? 'pb-24' : 'pb-28')}>{children}</main>
 
       <nav className="glass fixed inset-x-3 bottom-3 z-20 mx-auto max-w-[520px] rounded-[24px] border border-line/80 p-1.5 shadow-[0_18px_50px_rgba(10,15,35,.24)]">
         <div className="flex gap-1">

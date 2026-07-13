@@ -14,7 +14,7 @@ export function Card({
     <div
       onClick={onClick}
       className={cn(
-        'rounded-[var(--radius-app)] border border-line/80 bg-surface p-4 shadow-[0_8px_30px_rgba(30,38,70,.05)]',
+        'rounded-[16px] border border-line/80 bg-surface p-3 shadow-[0_5px_18px_rgba(30,38,70,.04)]',
         onClick && 'cursor-pointer transition duration-200 active:scale-[.985]',
         className,
       )}
@@ -26,7 +26,7 @@ export function Card({
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mx-1 mt-7 mb-2.5 text-[10px] font-black tracking-[0.18em] text-ink-3 uppercase">
+    <h2 className="mx-1 mt-4 mb-1.5 text-[10px] font-black tracking-[0.18em] text-ink-3 uppercase">
       {children}
     </h2>
   )
@@ -90,7 +90,7 @@ export function Button({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-[16px] px-4 py-3.5 text-[15px] font-black transition active:scale-[0.98] disabled:opacity-50',
+        'inline-flex items-center justify-center gap-2 rounded-[13px] px-3.5 py-3 text-[14px] font-black transition active:scale-[0.98] disabled:opacity-50',
         variants[variant],
         className,
       )}
@@ -111,16 +111,16 @@ export function StatTile({
 }) {
   const color = tone === 'warn' ? 'text-warn' : tone === 'ok' ? 'text-ok' : 'text-crust'
   return (
-    <div className="rounded-[20px] border border-line/80 bg-surface p-4 shadow-[0_8px_30px_rgba(30,38,70,.05)]">
+    <div className="rounded-[16px] border border-line/80 bg-surface p-3 shadow-[0_5px_18px_rgba(30,38,70,.04)]">
       <div className={cn('tabnums text-[32px] leading-none font-black tracking-[-.06em]', color)}>{n}</div>
-      <div className="mt-2 text-[11px] leading-tight font-medium text-ink-2">{label}</div>
+      <div className="mt-1 text-[11px] leading-tight font-medium text-ink-2">{label}</div>
     </div>
   )
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-[var(--radius-app)] border border-dashed border-line px-6 py-10 text-center text-[13px] text-ink-3">
+    <div className="rounded-[16px] border border-dashed border-line px-4 py-6 text-center text-[13px] text-ink-3">
       {children}
     </div>
   )

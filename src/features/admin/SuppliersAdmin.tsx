@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { ChevronLeft, Plus, Trash2, Check } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
-import { Card, Button } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { services, type Supplier } from '@/services'
 import type { SupplierInput } from '@/services/types'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -81,12 +81,12 @@ export function SuppliersAdmin() {
         <ChevronLeft size={15} /> Paramètres
       </button>
 
-      <div className="mt-3 flex flex-col gap-2">
+      <div className="mt-2 overflow-hidden rounded-[14px] border border-line/80 bg-surface divide-y divide-line">
         {suppliers.map((s) => (
-          <Card key={s.id} className="flex items-center gap-3">
+          <div key={s.id} className="flex h-12 items-center gap-2 px-2.5">
             <button onClick={() => setDraft(toDraft(s, siteId))} className="min-w-0 flex-1 text-left">
-              <div className="truncate text-[14.5px] font-semibold">{s.name}</div>
-              <div className="tabnums text-[11px] text-ink-3">
+              <div className="truncate text-[13.5px] font-semibold">{s.name}</div>
+              <div className="tabnums truncate text-[10px] text-ink-3">
                 {s.phone} · commande {s.deliveryLabel || '—'}
               </div>
             </button>
@@ -94,12 +94,12 @@ export function SuppliersAdmin() {
               onClick={() => {
                 if (confirm(`Supprimer « ${s.name} » ?`)) del.mutate(s.id)
               }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-warn"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-warn"
               aria-label="Supprimer"
             >
-              <Trash2 size={17} />
+              <Trash2 size={15} />
             </button>
-          </Card>
+          </div>
         ))}
       </div>
     </AppShell>
@@ -145,19 +145,19 @@ function SupplierForm({
 
   return (
     <AppShell eyebrow="Paramètres · Fournisseur" title={draft.id ? 'Modifier' : 'Nouveau fournisseur'}>
-      <div className="mt-2 flex flex-col gap-3">
+      <div className="mt-2 flex flex-col gap-2">
         <Field label="Nom">
           <input
             value={draft.name}
             onChange={(e) => set('name', e.target.value)}
-            className="w-full rounded-[12px] border border-line bg-surface px-3.5 py-3 text-[15px]"
+            className="w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[14px]"
           />
         </Field>
         <Field label="Téléphone">
           <input
             value={draft.phone}
             onChange={(e) => set('phone', e.target.value)}
-            className="w-full rounded-[12px] border border-line bg-surface px-3.5 py-3 text-[15px]"
+            className="w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[14px]"
           />
         </Field>
 
@@ -181,13 +181,13 @@ function SupplierForm({
           </div>
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <Field label="Heure limite">
             <input
               type="time"
               value={draft.cutoff}
               onChange={(e) => set('cutoff', e.target.value)}
-              className="w-full rounded-[12px] border border-line bg-surface px-3 py-3 text-[15px]"
+              className="w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[14px]"
             />
           </Field>
           <Field label="Délai livraison (jours)">
@@ -195,7 +195,7 @@ function SupplierForm({
               value={draft.leadDays}
               onChange={(e) => set('leadDays', Math.max(0, parseInt(e.target.value) || 0))}
               inputMode="numeric"
-              className="tabnums w-full rounded-[12px] border border-line bg-surface px-3 py-3 text-center text-[15px] font-bold"
+              className="tabnums w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-center text-[14px] font-bold"
             />
           </Field>
         </div>

@@ -33,22 +33,22 @@ export function ParametresPage() {
 
   return (
     <AppShell eyebrow="Paramètres" title="Configuration">
-      <div className="mt-2 flex flex-col gap-2">
+      <div className="mt-1 flex flex-col gap-1.5">
         {ENTRIES.map((e) => (
           <Card key={e.to} className="flex items-center gap-3" onClick={() => navigate(e.to)}>
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-crust-ink">
-              <e.icon size={20} />
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-crust-soft text-crust-ink">
+              <e.icon size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-semibold">{e.label}</div>
-              <div className="text-[11.5px] text-ink-2">{e.sub}</div>
+              <div className="text-[14px] font-semibold">{e.label}</div>
+              <div className="text-[10.5px] text-ink-2">{e.sub}</div>
             </div>
             <ChevronRight size={18} className="text-ink-3" />
           </Card>
         ))}
         <Card className="flex items-center gap-3 opacity-60">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-surface-2 text-ink-3">
-            <Croissant size={20} />
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-surface-2 text-ink-3">
+            <Croissant size={18} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[15px] font-semibold">Préparations</div>

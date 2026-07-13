@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { ChevronLeft, Plus, Trash2, Check } from 'lucide-react'
+import { ChevronLeft, Plus, Trash2, Check, Star } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
-import { Card, Button } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { FamilySection } from '@/components/FamilySection'
 import { services, type Product } from '@/services'
 import type { ProductInput } from '@/services/types'
@@ -58,6 +58,11 @@ export function ProductsAdmin() {
     mutationFn: (id: string) => services.admin.deleteProduct(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   })
+  const favorite = useMutation({
+    mutationFn: ({ id, isFavorite }: { id: string; isFavorite: boolean }) =>
+      services.admin.setProductFavorite(id, isFavorite),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  })
 
   const catName = useMemo(() => {
     const m: Record<string, string> = {}
@@ -102,15 +107,26 @@ export function ProductsAdmin() {
       </button>
 
       {groupByFamily(products).map((g) => (
-        <FamilySection key={g.family} title={g.family} count={g.items.length}>
+        <FamilySection key={g.family} title={g.family} count={g.items.length} compact>
           {g.items.map((p) => (
-            <Card key={p.id} className="flex items-center gap-3">
+            <div key={p.id} className="flex h-12 items-center gap-2 px-2.5">
+              <button
+                onClick={() => favorite.mutate({ id: p.id, isFavorite: !p.isFavorite })}
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
+                aria-label={p.isFavorite ? `Retirer ${p.name} des favoris` : `Ajouter ${p.name} aux favoris`}
+                title={p.isFavorite ? 'Produit favori' : 'Mettre en favori'}
+              >
+                <Star
+                  size={17}
+                  className={p.isFavorite ? 'fill-crust text-crust' : 'text-ink-3'}
+                />
+              </button>
               <button
                 onClick={() => setDraft(toDraft(p, siteId))}
                 className="min-w-0 flex-1 text-left"
               >
-                <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
-                <div className="text-[11px] text-ink-3">
+                <div className="truncate text-[13.5px] font-semibold">{p.name}</div>
+                <div className="truncate text-[10px] text-ink-3">
                   {catName[p.categoryId ?? ''] ?? p.category} · carton de {p.packSize} · réf {p.ref}
                 </div>
               </button>
@@ -118,12 +134,12 @@ export function ProductsAdmin() {
                 onClick={() => {
                   if (confirm(`Supprimer « ${p.name} » ?`)) del.mutate(p.id)
                 }}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-warn"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-warn"
                 aria-label="Supprimer"
               >
-                <Trash2 size={17} />
+                <Trash2 size={15} />
               </button>
-            </Card>
+            </div>
           ))}
         </FamilySection>
       ))}
@@ -187,21 +203,21 @@ function ProductForm({
 
   return (
     <AppShell eyebrow="Paramètres · Produit" title={draft.id ? 'Modifier' : 'Nouveau produit'}>
-      <div className="mt-2 flex flex-col gap-3">
+      <div className="mt-2 flex flex-col gap-2">
         <Field label="Nom">
           <input
             value={draft.name}
             onChange={(e) => set('name', e.target.value)}
-            className="w-full rounded-[12px] border border-line bg-surface px-3.5 py-3 text-[15px]"
+            className="w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[14px]"
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <Field label="Famille">
             <select
               value={draft.categoryId ?? ''}
               onChange={(e) => set('categoryId', e.target.value || null)}
-              className="w-full rounded-[12px] border border-line bg-surface px-3 py-3 text-[14px]"
+              className="w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[13px]"
             >
               <option value="">—</option>
               {categories.map((c) => (
@@ -215,7 +231,7 @@ function ProductForm({
             <select
               value={draft.supplierId ?? ''}
               onChange={(e) => set('supplierId', e.target.value || null)}
-              className="w-full rounded-[12px] border border-line bg-surface px-3 py-3 text-[14px]"
+              className="w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[13px]"
             >
               <option value="">—</option>
               {suppliers.map((s) => (
@@ -227,12 +243,12 @@ function ProductForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           <Field label="Réf. fourn.">
             <input
               value={draft.supplierRef}
               onChange={(e) => set('supplierRef', e.target.value)}
-              className="w-full rounded-[12px] border border-line bg-surface px-3 py-3 text-[14px]"
+              className="w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[13px]"
             />
           </Field>
           <NumField label="Carton (u.)" value={draft.packSize} onChange={(v) => set('packSize', v)} />
@@ -296,7 +312,7 @@ function NumField({
         value={value}
         onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
         inputMode="numeric"
-        className="tabnums w-full rounded-[12px] border border-line bg-surface px-3 py-3 text-center text-[15px] font-bold"
+        className="tabnums w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-center text-[14px] font-bold"
       />
     </Field>
   )

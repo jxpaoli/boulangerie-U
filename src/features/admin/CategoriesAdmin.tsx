@@ -98,15 +98,15 @@ export function CategoriesAdmin() {
         </Card>
       )}
 
-      <div className="mt-3 flex flex-col gap-2">
+      <div className="mt-2 overflow-hidden rounded-[14px] border border-line/80 bg-surface divide-y divide-line">
         {categories.map((c) => (
-          <Card key={c.id} className="flex items-center gap-3">
-            <span className="tabnums w-6 text-center text-[13px] font-bold text-ink-3">
+          <div key={c.id} className="flex h-11 items-center gap-2 px-2.5">
+            <span className="tabnums w-5 text-center text-[11px] font-bold text-ink-3">
               {c.position}
             </span>
             <button
               onClick={() => setDraft({ id: c.id, siteId, name: c.name, position: c.position })}
-              className="min-w-0 flex-1 text-left text-[14.5px] font-semibold"
+              className="min-w-0 flex-1 text-left text-[13.5px] font-semibold"
             >
               {c.name}
             </button>
@@ -114,12 +114,12 @@ export function CategoriesAdmin() {
               onClick={() => {
                 if (confirm(`Supprimer la famille « ${c.name} » ?`)) del.mutate(c.id)
               }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-warn"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-warn"
               aria-label="Supprimer"
             >
-              <Trash2 size={17} />
+              <Trash2 size={15} />
             </button>
-          </Card>
+          </div>
         ))}
       </div>
     </AppShell>

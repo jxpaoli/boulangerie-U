@@ -142,7 +142,7 @@ export const supabaseServices: DataServices = {
         db
           .from('products')
           .select(
-            `id, name, internal_ref, location_id, min_units, max_units,
+            `id, name, internal_ref, location_id, min_units, max_units, is_favorite,
              category:product_categories(id, name, position),
              supplier_products(supplier_id, supplier_ref, pack_size, order_unit),
              forecast:forecast_settings(conso_mon,conso_tue,conso_wed,conso_thu,conso_fri,conso_sat,conso_sun)`,
@@ -174,6 +174,7 @@ export const supabaseServices: DataServices = {
           stockUnits: balances[row.id as string] ?? 0,
           minUnits: (row.min_units as number) ?? 0,
           maxUnits: (row.max_units as number) ?? 0,
+          isFavorite: (row.is_favorite as boolean) ?? false,
           conso: f
             ? [
                 f.conso_mon ?? 0,
@@ -338,6 +339,10 @@ export const supabaseServices: DataServices = {
         conso_sun: c[6] ?? 0,
       })
       if (e3) throw e3
+    },
+    async setProductFavorite(id: string, isFavorite: boolean): Promise<void> {
+      const { error } = await client().from('products').update({ is_favorite: isFavorite }).eq('id', id)
+      if (error) throw error
     },
     async deleteProduct(id: string): Promise<void> {
       const { error } = await client().from('products').update({ active: false }).eq('id', id)
