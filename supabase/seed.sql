@@ -4,6 +4,9 @@ truncate point_chaud.stock_movements, point_chaud.supplier_products, point_chaud
   point_chaud.prep_template_lines, point_chaud.prep_templates, point_chaud.products,
   point_chaud.suppliers, point_chaud.product_categories restart identity cascade;
 
+insert into point_chaud.sites (id, name, timezone) values ('00000000-0000-0000-0000-0000000000c1','Point Chaud','Europe/Paris') on conflict (id) do nothing;
+insert into point_chaud.app_settings (site_id, safety_deliveries, recalibration_threshold) values ('00000000-0000-0000-0000-0000000000c1',1,0.20) on conflict (site_id) do nothing;
+
 insert into point_chaud.product_categories (id, site_id, name, position) values
   ('33333333-3333-3333-3333-000000000001','00000000-0000-0000-0000-0000000000c1','Baguettes',1),
   ('33333333-3333-3333-3333-000000000002','00000000-0000-0000-0000-0000000000c1','Pains',2),
