@@ -4,8 +4,21 @@ import { QuickExitPage } from '@/features/stock/QuickExitPage'
 import { StockListPage } from '@/features/stock/StockListPage'
 import { OrdersPage } from '@/features/orders/OrdersPage'
 import { ReceptionsPage } from '@/features/deliveries/ReceptionsPage'
+import { LoginPage } from '@/features/auth/LoginPage'
+import { useAuth } from '@/features/auth/AuthProvider'
 
 export default function App() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center text-[13px] text-ink-3">
+        Chargement…
+      </div>
+    )
+  }
+  if (!user) return <LoginPage />
+
   return (
     <Routes>
       <Route path="/" element={<DashboardPage />} />

@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, PackageMinus, ClipboardList, Truck, Snowflake, Moon } from 'lucide-react'
+import { Home, PackageMinus, ClipboardList, Truck, Snowflake, Moon, LogOut } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useTheme } from '@/lib/theme'
+import { useAuth } from '@/features/auth/AuthProvider'
 
 const NAV = [
   { to: '/', label: 'Accueil', icon: Home, end: true },
@@ -26,6 +27,7 @@ export function AppShell({
   action?: ReactNode
 }) {
   const { toggle } = useTheme()
+  const { user, signOut } = useAuth()
   return (
     <div className="mx-auto flex min-h-dvh max-w-[480px] flex-col bg-bg">
       <header className="flex items-end justify-between gap-3 px-4 pt-8 pb-3">
@@ -42,6 +44,20 @@ export function AppShell({
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           {action}
+          {user && (
+            <button
+              onClick={() => {
+                if (confirm(`Fermer la session de ${user.name} ?`)) void signOut()
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-line bg-surface py-1 pr-2.5 pl-1 text-[11px] font-bold text-ink-2"
+              aria-label="Changer d'utilisateur"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-crust-soft text-[11px] text-crust-ink">
+                {user.name[0]}
+              </span>
+              <LogOut size={13} />
+            </button>
+          )}
           <button
             onClick={toggle}
             aria-label="Changer de thème"

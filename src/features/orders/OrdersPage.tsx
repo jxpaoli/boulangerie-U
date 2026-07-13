@@ -25,7 +25,8 @@ import {
 } from '@/lib/orderCalendar'
 import { computeOrderProposal, type OrderProposal } from '@/lib/orderProposal'
 import { formatPacks, formatDayLong, plural, packBreakdown } from '@/lib/format'
-import { useDemoRole, isSignificantGap, type Role } from '@/features/demo/role'
+import { isSignificantGap } from '@/features/demo/role'
+import { useAuth } from '@/features/auth/AuthProvider'
 
 const SAFETY_DELIVERIES = 1 // filet « +1 livraison » (réglable plus tard)
 
@@ -225,7 +226,6 @@ function SupplierOrder({
           <Eye size={14} className="text-crust" />
           Contrôle visuel : {nbChecked}/{products.length} vérifiés
         </div>
-        <RoleSwitch />
       </div>
 
       <div className="mt-2 flex flex-col gap-2">
@@ -298,7 +298,8 @@ function OrderLine({
   const [noteOpen, setNoteOpen] = useState(false)
   const [reconciled, setReconciled] = useState(false)
   const [proposed, setProposed] = useState(false)
-  const role = useDemoRole((s) => s.role)
+  const { user } = useAuth()
+  const role = user?.role ?? 'vendeuse'
   const edited = packs !== pr.packs
   const checkedStock = check ? check.full * p.packSize + partUnits(p.packSize, check.partIdx) : null
 
@@ -585,26 +586,6 @@ function Row({ k, v }: { k: string; v: string | number }) {
     <div className="flex justify-between gap-3">
       <span className="text-ink-3">{k}</span>
       <span className="font-semibold text-ink">{v}</span>
-    </div>
-  )
-}
-
-function RoleSwitch() {
-  const { role, setRole } = useDemoRole()
-  const roles: Role[] = ['vendeuse', 'responsable']
-  return (
-    <div className="flex items-center overflow-hidden rounded-full border border-line bg-surface-2 text-[10.5px] font-bold">
-      {roles.map((r) => (
-        <button
-          key={r}
-          onClick={() => setRole(r)}
-          className={
-            'px-2.5 py-1 ' + (role === r ? 'bg-crust text-white' : 'text-ink-3')
-          }
-        >
-          {r === 'vendeuse' ? 'Vendeuse' : 'Responsable'}
-        </button>
-      ))}
     </div>
   )
 }
