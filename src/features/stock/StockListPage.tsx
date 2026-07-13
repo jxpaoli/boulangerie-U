@@ -1,29 +1,30 @@
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge } from '@/components/ui'
-import { demoProducts, groupByFamily, type DemoProduct } from '@/features/demo/data'
+import { services, type Product } from '@/services'
 import { formatPacks } from '@/lib/format'
 
 export function StockListPage() {
   const [query, setQuery] = useState('')
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => services.catalog.listProducts(),
+  })
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
     const items = q
-      ? demoProducts.filter(
+      ? products.filter(
           (p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q),
         )
-      : demoProducts
-    // à l'intérieur d'une famille, les plus urgents (autonomie faible) d'abord
-    return groupByFamily(items).map((g) => ({
-      ...g,
-      items: [...g.items].sort((a, b) => autonomy(a) - autonomy(b)),
-    }))
-  }, [query])
+      : products
+    return groupByFamily(items)
+  }, [query, products])
 
   return (
-    <AppShell eyebrow="Congélateur" title="Stock" subtitle={`${demoProducts.length} produits`}>
+    <AppShell eyebrow="Congélateur" title="Stock" subtitle={`${products.length} produits`}>
       <div className="relative mt-1">
         <Search size={18} className="absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-3" />
         <input
@@ -34,7 +35,8 @@ export function StockListPage() {
         />
       </div>
 
-      {groups.length === 0 && (
+      {isLoading && <div className="mt-8 text-center text-[13px] text-ink-3">Chargement…</div>}
+      {!isLoading && groups.length === 0 && (
         <div className="mt-8 text-center text-[13px] text-ink-3">Aucun produit ne correspond.</div>
       )}
 
@@ -71,14 +73,29 @@ export function StockListPage() {
       ))}
 
       <p className="mt-6 text-center text-[11px] text-ink-3">
-        Produits regroupés par famille · autonomie estimée · données de démo
+        Produits regroupés par famille · autonomie estimée · source : {services.source}
       </p>
     </AppShell>
   )
 }
 
-/** Nombre de jours avant rupture au rythme de conso moyen (approx. démo). */
-function autonomy(p: DemoProduct): number {
+/** Regroupe par famille en respectant categoryPosition ; urgents (autonomie faible) d'abord. */
+function groupByFamily(items: Product[]): { family: string; items: Product[] }[] {
+  const map = new Map<string, { position: number; items: Product[] }>()
+  for (const p of items) {
+    const g = map.get(p.category) ?? { position: p.categoryPosition, items: [] }
+    g.items.push(p)
+    map.set(p.category, g)
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[1].position - b[1].position)
+    .map(([family, g]) => ({
+      family,
+      items: [...g.items].sort((a, b) => autonomy(a) - autonomy(b)),
+    }))
+}
+
+function autonomy(p: Product): number {
   const avg = p.conso.reduce((s, c) => s + c, 0) / 7
   if (avg <= 0) return 99
   return Math.floor(p.stockUnits / avg)
