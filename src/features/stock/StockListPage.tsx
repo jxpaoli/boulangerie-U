@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Search, ClipboardCheck } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge } from '@/components/ui'
+import { FamilySection } from '@/components/FamilySection'
 import { services, type Product } from '@/services'
 import { formatPacks } from '@/lib/format'
 
@@ -51,35 +52,27 @@ export function StockListPage() {
       )}
 
       {groups.map((g) => (
-        <section key={g.family}>
-          <div className="mx-1 mt-6 mb-2 flex items-center justify-between">
-            <h2 className="text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
-              {g.family}
-            </h2>
-            <span className="tabnums text-[11px] text-ink-3">{g.items.length}</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {g.items.map((p) => {
-              const days = autonomy(p)
-              const low = p.stockUnits < p.minUnits
-              return (
-                <Card key={p.id} className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
-                    <div className="tabnums mt-0.5 text-[11px] text-ink-3">
-                      {formatPacks(p.stockUnits, p.packSize, p.packLabel)}
-                    </div>
+        <FamilySection key={g.family} title={g.family} count={g.items.length}>
+          {g.items.map((p) => {
+            const days = autonomy(p)
+            const low = p.stockUnits < p.minUnits
+            return (
+              <Card key={p.id} className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
+                  <div className="tabnums mt-0.5 text-[11px] text-ink-3">
+                    {formatPacks(p.stockUnits, p.packSize, p.packLabel)}
                   </div>
-                  <div className="text-right">
-                    <div className="tabnums text-[15px] font-extrabold">{p.stockUnits}</div>
-                    <div className="text-[10px] text-ink-3">unités</div>
-                  </div>
-                  {low ? <Badge tone="warn">sous mini</Badge> : <Badge tone="ok">~{days} j</Badge>}
-                </Card>
-              )
-            })}
-          </div>
-        </section>
+                </div>
+                <div className="text-right">
+                  <div className="tabnums text-[15px] font-extrabold">{p.stockUnits}</div>
+                  <div className="text-[10px] text-ink-3">unités</div>
+                </div>
+                {low ? <Badge tone="warn">sous mini</Badge> : <Badge tone="ok">~{days} j</Badge>}
+              </Card>
+            )
+          })}
+        </FamilySection>
       ))}
 
       <p className="mt-6 text-center text-[11px] text-ink-3">

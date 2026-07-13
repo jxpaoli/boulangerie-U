@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Home,
@@ -38,6 +38,7 @@ export function AppShell({
   const { toggle } = useTheme()
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
   return (
     <div className="mx-auto flex min-h-dvh max-w-[480px] flex-col bg-bg">
       <header className="flex items-end justify-between gap-3 px-4 pt-8 pb-3">
@@ -54,29 +55,6 @@ export function AppShell({
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           {action}
-          {user?.role === 'responsable' && (
-            <button
-              onClick={() => navigate('/parametres')}
-              aria-label="Paramètres"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink-2"
-            >
-              <Settings size={17} />
-            </button>
-          )}
-          {user && (
-            <button
-              onClick={() => {
-                if (confirm(`Fermer la session de ${user.name} ?`)) void signOut()
-              }}
-              className="flex items-center gap-1.5 rounded-full border border-line bg-surface py-1 pr-2.5 pl-1 text-[11px] font-bold text-ink-2"
-              aria-label="Changer d'utilisateur"
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-crust-soft text-[11px] text-crust-ink">
-                {user.name[0]}
-              </span>
-              <LogOut size={13} />
-            </button>
-          )}
           <button
             onClick={toggle}
             aria-label="Changer de thème"
@@ -84,6 +62,48 @@ export function AppShell({
           >
             <Moon size={17} />
           </button>
+          {user && (
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-crust text-[13px] font-extrabold text-white"
+                aria-label="Menu utilisateur"
+              >
+                {user.name[0]?.toUpperCase()}
+              </button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute top-full right-0 z-40 mt-1.5 w-56 overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow)]">
+                    <div className="border-b border-line px-3.5 py-2.5">
+                      <div className="text-[13px] font-bold">{user.name}</div>
+                      <div className="text-[11px] text-ink-3 capitalize">{user.role}</div>
+                    </div>
+                    {user.role === 'responsable' && (
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false)
+                          navigate('/parametres')
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-[13.5px] font-semibold text-ink"
+                      >
+                        <Settings size={16} className="text-ink-2" /> Paramètres
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false)
+                        void signOut()
+                      }}
+                      className="flex w-full items-center gap-2.5 border-t border-line px-3.5 py-3 text-left text-[13.5px] font-semibold text-warn"
+                    >
+                      <LogOut size={16} /> Changer d'utilisateur
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 

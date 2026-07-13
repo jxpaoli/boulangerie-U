@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ClipboardCheck, ChevronLeft, Check } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
+import { FamilySection } from '@/components/FamilySection'
 import { services, type Product } from '@/services'
 import { formatPacks } from '@/lib/format'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -72,38 +73,33 @@ export function InventoryPage() {
   return (
     <AppShell eyebrow="Inventaire" title="Compter le stock" subtitle="Saisis ce que tu comptes vraiment">
       {groups.map((g) => (
-        <section key={g.family}>
-          <div className="mx-1 mt-5 mb-2 text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
-            {g.family}
-          </div>
-          <div className="flex flex-col gap-2">
-            {g.items.map((p) => {
-              const c = countOf(p)
-              const gap = c - p.stockUnits
-              return (
-                <Card key={p.id} className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-semibold">{p.name}</div>
-                    <div className="tabnums text-[11px] text-ink-3">
-                      théorique {p.stockUnits} · {formatPacks(p.stockUnits, p.packSize, p.packLabel)}
-                    </div>
+        <FamilySection key={g.family} title={g.family} count={g.items.length}>
+          {g.items.map((p) => {
+            const c = countOf(p)
+            const gap = c - p.stockUnits
+            return (
+              <Card key={p.id} className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-semibold">{p.name}</div>
+                  <div className="tabnums text-[11px] text-ink-3">
+                    théorique {p.stockUnits} · {formatPacks(p.stockUnits, p.packSize, p.packLabel)}
                   </div>
-                  {gap !== 0 && (
-                    <Badge tone={gap < 0 ? 'warn' : 'crust'}>{gap > 0 ? `+${gap}` : gap}</Badge>
-                  )}
-                  <input
-                    value={c}
-                    onChange={(e) =>
-                      setCounted((s) => ({ ...s, [p.id]: Math.max(0, parseInt(e.target.value) || 0) }))
-                    }
-                    inputMode="numeric"
-                    className="tabnums w-16 rounded-[10px] border border-line bg-surface-2 py-2 text-center text-[16px] font-extrabold text-ink"
-                  />
-                </Card>
-              )
-            })}
-          </div>
-        </section>
+                </div>
+                {gap !== 0 && (
+                  <Badge tone={gap < 0 ? 'warn' : 'crust'}>{gap > 0 ? `+${gap}` : gap}</Badge>
+                )}
+                <input
+                  value={c}
+                  onChange={(e) =>
+                    setCounted((s) => ({ ...s, [p.id]: Math.max(0, parseInt(e.target.value) || 0) }))
+                  }
+                  inputMode="numeric"
+                  className="tabnums w-16 rounded-[10px] border border-line bg-surface-2 py-2 text-center text-[16px] font-extrabold text-ink"
+                />
+              </Card>
+            )
+          })}
+        </FamilySection>
       ))}
 
       <div className="mt-4 grid grid-cols-[1fr_2fr] gap-2">

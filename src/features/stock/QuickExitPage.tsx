@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
+import { FamilySection } from '@/components/FamilySection'
 import { services, type Product, type Prepa, type ExitLine } from '@/services'
 import { formatPacks, formatTime, plural } from '@/lib/format'
 import { cn } from '@/lib/cn'
@@ -371,41 +372,36 @@ function NewLotMode({
         />
       </div>
 
-      <div className="mt-3">
+      <div className="mt-1">
         {groupByFamily(results).map((g) => (
-          <section key={g.family}>
-            <div className="mx-1 mt-4 mb-2 text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
-              {g.family}
-            </div>
-            <div className="flex flex-col gap-2">
-              {g.items.map((p) => {
-                const inLot = (lot[p.id] ?? 0) > 0
-                return (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-3 rounded-[var(--radius-app)] border border-line bg-surface p-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[14px] font-semibold">{p.name}</div>
-                      <div className="tabnums text-[11px] text-ink-3">
-                        reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
-                      </div>
+          <FamilySection key={g.family} title={g.family} count={g.items.length}>
+            {g.items.map((p) => {
+              const inLot = (lot[p.id] ?? 0) > 0
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-3 rounded-[var(--radius-app)] border border-line bg-surface p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-semibold">{p.name}</div>
+                    <div className="tabnums text-[11px] text-ink-3">
+                      reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
                     </div>
-                    {inLot ? (
-                      <Badge tone="crust">{formatPacks(lot[p.id] ?? 0, p.packSize, p.packLabel)}</Badge>
-                    ) : (
-                      <button
-                        onClick={() => setLot((l) => ({ ...l, [p.id]: (l[p.id] ?? 0) + p.packSize }))}
-                        className="flex h-9 items-center gap-1 rounded-[11px] bg-crust-soft px-3 text-[13px] font-bold text-crust-ink"
-                      >
-                        <Plus size={15} /> Ajouter
-                      </button>
-                    )}
                   </div>
-                )
-              })}
-            </div>
-          </section>
+                  {inLot ? (
+                    <Badge tone="crust">{formatPacks(lot[p.id] ?? 0, p.packSize, p.packLabel)}</Badge>
+                  ) : (
+                    <button
+                      onClick={() => setLot((l) => ({ ...l, [p.id]: (l[p.id] ?? 0) + p.packSize }))}
+                      className="flex h-9 items-center gap-1 rounded-[11px] bg-crust-soft px-3 text-[13px] font-bold text-crust-ink"
+                    >
+                      <Plus size={15} /> Ajouter
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </FamilySection>
         ))}
       </div>
     </>
@@ -460,33 +456,28 @@ function SingleMode({
             className="w-full rounded-[14px] border border-line bg-surface py-3.5 pr-4 pl-11 text-[15px] text-ink placeholder:text-ink-3"
           />
         </div>
-        <div className="mt-3">
+        <div className="mt-1">
           {groupByFamily(results).map((g) => (
-            <section key={g.family}>
-              <div className="mx-1 mt-4 mb-2 text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
-                {g.family}
-              </div>
-              <div className="flex flex-col gap-2">
-                {g.items.map((p) => (
-                  <Card
-                    key={p.id}
-                    className="flex items-center gap-3"
-                    onClick={() => {
-                      setSelectedId(p.id)
-                      setQty(1)
-                    }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
-                      <div className="tabnums text-[11px] text-ink-3">
-                        Réf {p.ref} · reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
-                      </div>
+            <FamilySection key={g.family} title={g.family} count={g.items.length}>
+              {g.items.map((p) => (
+                <Card
+                  key={p.id}
+                  className="flex items-center gap-3"
+                  onClick={() => {
+                    setSelectedId(p.id)
+                    setQty(1)
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
+                    <div className="tabnums text-[11px] text-ink-3">
+                      Réf {p.ref} · reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
                     </div>
-                    <PackageMinus size={20} className="text-crust" />
-                  </Card>
-                ))}
-              </div>
-            </section>
+                  </div>
+                  <PackageMinus size={20} className="text-crust" />
+                </Card>
+              ))}
+            </FamilySection>
           ))}
           {results.length === 0 && (
             <div className="px-4 py-8 text-center text-[13px] text-ink-3">

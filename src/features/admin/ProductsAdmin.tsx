@@ -4,6 +4,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { ChevronLeft, Plus, Trash2, Check } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button } from '@/components/ui'
+import { FamilySection } from '@/components/FamilySection'
 import { services, type Product } from '@/services'
 import type { ProductInput } from '@/services/types'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -100,32 +101,46 @@ export function ProductsAdmin() {
         <ChevronLeft size={15} /> Paramètres
       </button>
 
-      <div className="mt-3 flex flex-col gap-2">
-        {products.map((p) => (
-          <Card key={p.id} className="flex items-center gap-3">
-            <button
-              onClick={() => setDraft(toDraft(p, siteId))}
-              className="min-w-0 flex-1 text-left"
-            >
-              <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
-              <div className="text-[11px] text-ink-3">
-                {catName[p.categoryId ?? ''] ?? p.category} · carton de {p.packSize} · réf {p.ref}
-              </div>
-            </button>
-            <button
-              onClick={() => {
-                if (confirm(`Supprimer « ${p.name} » ?`)) del.mutate(p.id)
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-warn"
-              aria-label="Supprimer"
-            >
-              <Trash2 size={17} />
-            </button>
-          </Card>
-        ))}
-      </div>
+      {groupByFamily(products).map((g) => (
+        <FamilySection key={g.family} title={g.family} count={g.items.length}>
+          {g.items.map((p) => (
+            <Card key={p.id} className="flex items-center gap-3">
+              <button
+                onClick={() => setDraft(toDraft(p, siteId))}
+                className="min-w-0 flex-1 text-left"
+              >
+                <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
+                <div className="text-[11px] text-ink-3">
+                  {catName[p.categoryId ?? ''] ?? p.category} · carton de {p.packSize} · réf {p.ref}
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Supprimer « ${p.name} » ?`)) del.mutate(p.id)
+                }}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-warn"
+                aria-label="Supprimer"
+              >
+                <Trash2 size={17} />
+              </button>
+            </Card>
+          ))}
+        </FamilySection>
+      ))}
     </AppShell>
   )
+}
+
+function groupByFamily(items: Product[]): { family: string; items: Product[] }[] {
+  const map = new Map<string, { position: number; items: Product[] }>()
+  for (const p of items) {
+    const g = map.get(p.category) ?? { position: p.categoryPosition, items: [] }
+    g.items.push(p)
+    map.set(p.category, g)
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[1].position - b[1].position)
+    .map(([family, g]) => ({ family, items: g.items }))
 }
 
 function toDraft(p: Product, siteId: string): Draft {

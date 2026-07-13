@@ -123,6 +123,10 @@ body,
 #root {
   margin: 0;
   min-height: 100vh;
+  /* jamais de scroll horizontal */
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -131,6 +135,11 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* évite qu'un enfant flex/grid pousse la largeur au-delà de l'écran */
+* {
+  min-width: 0;
 }
 
 /* Chiffres alignés partout où on compare des quantités */

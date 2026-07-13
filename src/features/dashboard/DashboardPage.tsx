@@ -3,11 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { PackageMinus, ClipboardList, Truck, Phone, ArrowRight, AlertTriangle } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, SectionTitle, StatTile, Badge } from '@/components/ui'
-import { services } from '@/services'
+import { services, type Supplier, type Product } from '@/services'
 import { formatDayLong, formatPacks } from '@/lib/format'
-import { supplierPlan, civilToDate } from '@/lib/orderCalendar'
+import { supplierPlan, coverageEnd, toParisCivil, civilToDate } from '@/lib/orderCalendar'
+import { computeOrderProposal } from '@/lib/orderProposal'
 
 const today = new Date()
+const SAFETY_DELIVERIES = 1
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -23,28 +25,30 @@ export function DashboardPage() {
   const atRisk = products.filter((p) => p.stockUnits < p.minUnits)
   const suppliersDue = suppliers.filter((s) => s.dueToday)
 
+  // statut de la commande du jour : vert (rien) / bleu (à commander) / rouge (rupture)
+  const orderStatus = computeOrderStatus(suppliersDue, products)
+
   return (
     <AppShell eyebrow="Point Chaud" title="Bonjour" subtitle={cap(formatDayLong(today))}>
       {/* Hero : commande du jour */}
       <div
-        className="mt-1 rounded-[22px] bg-gradient-to-br from-crust to-crust-ink p-[18px] text-white"
-        style={{ boxShadow: '0 8px 20px rgba(150,80,20,.32)' }}
+        className="mt-1 flex items-center gap-3 rounded-[16px] p-3.5 text-white"
+        style={{ background: HERO[orderStatus].bg }}
       >
-        <div className="text-[11px] font-bold tracking-[0.12em] uppercase opacity-85">
-          {suppliersDue.length > 0 ? `${suppliersDue.length} commande(s) aujourd'hui` : 'Aucune commande aujourd’hui'}
+        <div className="min-w-0 flex-1">
+          <div className="text-[10.5px] font-bold tracking-[0.1em] uppercase opacity-90">
+            {HERO[orderStatus].eyebrow(suppliersDue.length)}
+          </div>
+          <h2 className="mt-0.5 text-[16px] font-bold text-balance">{HERO[orderStatus].title}</h2>
         </div>
-        <h2 className="mt-1 text-[19px] font-bold">Commande à préparer</h2>
-        <p className="mt-0.5 text-[12.5px] leading-snug opacity-90">
-          Quantités calculées pour couvrir jusqu'à la livraison d'après la prochaine (ton filet +1
-          livraison).
-        </p>
-        <button
-          onClick={() => navigate('/commandes')}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-[13px] bg-white py-3.5 text-[15px] font-extrabold text-crust-ink"
-        >
-          <ClipboardList size={18} />
-          Préparer la commande
-        </button>
+        {orderStatus !== 'green' && (
+          <button
+            onClick={() => navigate('/commandes')}
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-[11px] bg-white px-3 py-2 text-[13px] font-extrabold text-[#241c12]"
+          >
+            <ClipboardList size={16} /> Préparer
+          </button>
+        )}
       </div>
 
       {/* Tuiles */}
@@ -151,6 +155,51 @@ function QuickAction({
       {label}
     </button>
   )
+}
+
+type OrderStatus = 'green' | 'blue' | 'red'
+
+const HERO: Record<
+  OrderStatus,
+  { bg: string; title: string; eyebrow: (n: number) => string }
+> = {
+  green: {
+    bg: 'linear-gradient(135deg,#3b7a4b,#285436)',
+    title: 'Tout est couvert 👍',
+    eyebrow: () => "Rien à commander aujourd'hui",
+  },
+  blue: {
+    bg: 'linear-gradient(135deg,#2f6fed,#1e46b8)',
+    title: 'Commande à préparer',
+    eyebrow: (n) => `${n} fournisseur${n > 1 ? 's' : ''} à commander`,
+  },
+  red: {
+    bg: 'linear-gradient(135deg,#c2410c,#7a2410)',
+    title: 'Risque de rupture — commande vite',
+    eyebrow: () => 'Stock à risque avant livraison',
+  },
+}
+
+function computeOrderStatus(dueSuppliers: Supplier[], products: Product[]): OrderStatus {
+  let rupture = false
+  let toOrder = false
+  for (const s of dueSuppliers) {
+    const now = toParisCivil(today)
+    const plan = supplierPlan(s.calendar, today)
+    const cov = coverageEnd(s.calendar, today, SAFETY_DELIVERIES)
+    for (const p of products) {
+      if (p.supplierId !== s.id) continue
+      const pr = computeOrderProposal(
+        { stockUnits: p.stockUnits, conso7: p.conso, packSize: p.packSize, maxStockUnits: p.maxUnits },
+        now,
+        plan.d1,
+        cov,
+      )
+      if (pr.ruptureBeforeDelivery) rupture = true
+      if (pr.packs > 0) toOrder = true
+    }
+  }
+  return rupture ? 'red' : toOrder ? 'blue' : 'green'
 }
 
 function cap(s: string): string {
