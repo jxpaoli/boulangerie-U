@@ -9,13 +9,17 @@ import {
   groupByFamily,
   type DemoPrepa,
 } from '@/features/demo/data'
-import { formatPacks } from '@/lib/format'
+import { formatPacks, formatTime } from '@/lib/format'
 import { cn } from '@/lib/cn'
+
+// Démo : l'utilisateur connecté (viendra de Supabase Auth). Tracé sur chaque sortie.
+const CURRENT_USER = 'Sabrina'
 
 interface RecentEntry {
   id: number
   title: string
   subtitle: string
+  meta: string
 }
 
 type Mode = 'prepa' | 'single'
@@ -48,7 +52,9 @@ export function QuickExitPage() {
   }
 
   function pushRecent(title: string, subtitle: string) {
-    setRecent((r) => [{ id: Date.now(), title, subtitle }, ...r].slice(0, 6))
+    const now = new Date()
+    const meta = `${formatTime(now)} · ${CURRENT_USER}`
+    setRecent((r) => [{ id: now.getTime(), title, subtitle, meta }, ...r].slice(0, 6))
   }
 
   return (
@@ -81,7 +87,12 @@ export function QuickExitPage() {
           <div className="flex flex-col gap-1.5">
             {recent.map((r) => (
               <div key={r.id} className="rounded-xl bg-surface px-3.5 py-2.5">
-                <div className="text-[13.5px] font-semibold">{r.title}</div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="text-[13.5px] font-semibold">{r.title}</div>
+                  <div className="tabnums flex-shrink-0 text-[11px] font-semibold text-crust-ink">
+                    {r.meta}
+                  </div>
+                </div>
                 <div className="tabnums text-[11px] text-ink-3">{r.subtitle}</div>
               </div>
             ))}

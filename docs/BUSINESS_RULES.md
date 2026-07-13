@@ -235,6 +235,17 @@ Fonctionnement :
 Modèle de données prévu : `prep_templates` / `prep_template_lines` (les modèles) et un
 `prep_batch_id` sur les `stock_movements` d'une même sortie groupée.
 
+**Gestion des préparations (administrable par la responsable)** : écran de création /
+modification d'une préparation — nom, horaire indicatif, et **choix des produits + quantités
+par défaut** de chaque ligne. Les préparations types sont donc **créées par l'utilisatrice**,
+pas figées. (Les prépas de démo ne sont que des exemples.)
+
+**Traçabilité obligatoire de chaque sortie** : tout mouvement (sortie simple ou préparation)
+enregistre **l'horodatage du clic** (`created_at`, Europe/Paris) et **l'auteur** (`user_id` =
+utilisateur connecté). Pour une préparation, chaque ligne partage le même horodatage, le même
+auteur et le même `prep_batch_id`. Rien n'est modifiable après coup (journal non destructif §0) ;
+l'historique montre « qui a sorti quoi, quand ».
+
 ## 13. Rôles (V1 = mono-utilisateur, base prête pour 3 rôles)
 
 Le modèle de données porte 3 rôles (`admin`, `manager`, `operator`) et un `site_id`,
