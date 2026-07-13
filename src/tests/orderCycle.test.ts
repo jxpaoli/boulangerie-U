@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasPlacedOrderForCycle } from '@/lib/orderCycle'
+import { dailyOrderSummary, hasPlacedOrderForCycle } from '@/lib/orderCycle'
 
 const orders = [
   { supplierId: 'supplier-a', coverFrom: '2026-07-15', status: 'ordered' },
@@ -22,5 +22,17 @@ describe('hasPlacedOrderForCycle', () => {
 
   it('ne masque pas le prochain cycle de livraison', () => {
     expect(hasPlacedOrderForCycle(orders, 'supplier-a', '2026-07-22')).toBe(false)
+  })
+})
+
+describe('dailyOrderSummary', () => {
+  it('reste très court à chaque étape de la journée', () => {
+    expect(dailyOrderSummary(2, 0)).toBe('2 commandes à passer')
+    expect(dailyOrderSummary(2, 1)).toBe('1 à passer · 1 passée')
+    expect(dailyOrderSummary(2, 2)).toBe('Toutes les commandes sont passées ✓')
+  })
+
+  it('distingue une journée sans commande prévue', () => {
+    expect(dailyOrderSummary(0, 0)).toBe('Aucune commande prévue')
   })
 })

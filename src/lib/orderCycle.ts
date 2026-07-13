@@ -17,3 +17,13 @@ export function hasPlacedOrderForCycle(
       order.status !== 'cancelled',
   )
 }
+
+export function dailyOrderSummary(total: number, passed: number): string {
+  if (total <= 0) return 'Aucune commande prévue'
+  const safePassed = Math.min(total, Math.max(0, passed))
+  const remaining = total - safePassed
+  if (remaining === 0) return 'Toutes les commandes sont passées ✓'
+  if (safePassed === 0)
+    return `${remaining} commande${remaining > 1 ? 's' : ''} à passer`
+  return `${remaining} à passer · ${safePassed} passée${safePassed > 1 ? 's' : ''}`
+}
