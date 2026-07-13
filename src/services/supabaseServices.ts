@@ -181,5 +181,13 @@ export const supabaseServices: DataServices = {
       })
       if (error) throw error
     },
+
+    async recordInventory(kind, lines): Promise<void> {
+      const { error } = await client().rpc('apply_inventory', {
+        p_kind: kind,
+        p_lines: lines.map((l) => ({ product_id: l.productId, counted_units: l.countedUnits })),
+      })
+      if (error) throw error
+    },
   },
 }

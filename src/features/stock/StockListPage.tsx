@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
+import { Search, ClipboardCheck } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge } from '@/components/ui'
 import { services, type Product } from '@/services'
 import { formatPacks } from '@/lib/format'
 
 export function StockListPage() {
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products'],
@@ -25,14 +27,22 @@ export function StockListPage() {
 
   return (
     <AppShell eyebrow="Congélateur" title="Stock" subtitle={`${products.length} produits`}>
-      <div className="relative mt-1">
-        <Search size={18} className="absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-3" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Chercher un produit ou une famille…"
-          className="w-full rounded-[14px] border border-line bg-surface py-3.5 pr-4 pl-11 text-[15px] text-ink placeholder:text-ink-3"
-        />
+      <div className="mt-1 flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search size={18} className="absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-3" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Chercher…"
+            className="w-full rounded-[14px] border border-line bg-surface py-3.5 pr-4 pl-11 text-[15px] text-ink placeholder:text-ink-3"
+          />
+        </div>
+        <button
+          onClick={() => navigate('/inventaire')}
+          className="flex h-[52px] flex-shrink-0 items-center gap-1.5 rounded-[14px] bg-crust-soft px-3.5 text-[13px] font-bold text-crust-ink"
+        >
+          <ClipboardCheck size={17} /> Inventaire
+        </button>
       </div>
 
       {isLoading && <div className="mt-8 text-center text-[13px] text-ink-3">Chargement…</div>}

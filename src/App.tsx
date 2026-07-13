@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { QuickExitPage } from '@/features/stock/QuickExitPage'
 import { StockListPage } from '@/features/stock/StockListPage'
+import { InventoryPage } from '@/features/stock/InventoryPage'
 import { OrdersPage } from '@/features/orders/OrdersPage'
 import { ReceptionsPage } from '@/features/deliveries/ReceptionsPage'
 import { LoginPage } from '@/features/auth/LoginPage'
@@ -24,6 +25,7 @@ export default function App() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/sortie" element={<QuickExitPage />} />
       <Route path="/stock" element={<StockListPage />} />
+      <Route path="/inventaire" element={<InventoryPage />} />
       <Route path="/commandes" element={<OrdersPage />} />
       <Route path="/receptions" element={<ReceptionsPage />} />
       <Route path="*" element={<DashboardPage />} />

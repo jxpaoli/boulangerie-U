@@ -77,6 +77,11 @@ export interface StockService {
     orderId: string | null,
     lines: ReceptionLine[],
   ): Promise<void>
+  /** Inventaire : recale le stock au réel compté (corrections tracées). */
+  recordInventory(
+    kind: 'initial' | 'full' | 'partial',
+    lines: { productId: string; countedUnits: number }[],
+  ): Promise<void>
 }
 
 export interface DataServices {

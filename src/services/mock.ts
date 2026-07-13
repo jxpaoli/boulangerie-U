@@ -85,5 +85,8 @@ export const mockServices: DataServices = {
       }
       seenBatches.add(idempotencyKey)
     },
+    async recordInventory(_kind, lines): Promise<void> {
+      for (const l of lines) balances[l.productId] = Math.max(0, l.countedUnits)
+    },
   },
 }
