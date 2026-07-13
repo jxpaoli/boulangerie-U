@@ -68,6 +68,7 @@ export function StockListPage() {
           {group.items.map((product) => {
             const days = autonomy(product)
             const low = product.stockUnits < product.minUnits
+            const autonomyUrgent = days !== null && days <= 1
             return (
               <div key={product.id} className="flex h-11 items-center gap-2.5 px-3">
                 <div className="min-w-0 flex-1 truncate text-[12.5px] font-bold">
@@ -84,12 +85,12 @@ export function StockListPage() {
                 </div>
                 <div
                   className={
-                    low
+                    autonomyUrgent
                       ? 'tabnums w-[45px] text-right text-[11px] font-black text-warn'
                       : 'tabnums w-[45px] text-right text-[11px] font-bold text-ink-2'
                   }
                 >
-                  {days >= 99 ? '99+ j' : `~${days} j`}
+                  {days === null ? '—' : days >= 99 ? '99+ j' : `~${days} j`}
                 </div>
               </div>
             )
@@ -114,12 +115,14 @@ function groupByFamily(items: Product[]): { family: string; items: Product[] }[]
     .sort((a, b) => a[1].position - b[1].position)
     .map(([family, group]) => ({
       family,
-      items: [...group.items].sort((a, b) => autonomy(a) - autonomy(b)),
+      items: [...group.items].sort(
+        (a, b) => (autonomy(a) ?? Number.POSITIVE_INFINITY) - (autonomy(b) ?? Number.POSITIVE_INFINITY),
+      ),
     }))
 }
 
-function autonomy(product: Product): number {
+function autonomy(product: Product): number | null {
   const average = product.conso.reduce((sum, consumption) => sum + consumption, 0) / 7
-  if (average <= 0) return 99
+  if (average <= 0) return null
   return Math.floor(product.stockUnits / average)
 }
