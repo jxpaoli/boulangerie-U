@@ -95,12 +95,19 @@ end $$;
 -- Politique de LECTURE générique : membres du même site
 --   (profiles : on peut lire les profils de son site)
 -- --------------------------------------------------------------------
+-- Tables « filles » sans colonne site_id (elles héritent via leur parent) :
+-- policies dédiées plus bas. On les EXCLUT de la boucle générique.
 do $$
 declare t text;
 begin
   for t in
     select tablename from pg_tables where schemaname = 'point_chaud'
-      and tablename not in ('sites')
+      and tablename not in (
+        'sites',
+        'supplier_order_rules', 'supplier_closures', 'prep_template_lines',
+        'stock_count_lines', 'purchase_order_lines', 'order_status_history',
+        'delivery_lines', 'delivery_documents'
+      )
   loop
     execute format($f$
       create policy pc_select_same_site on point_chaud.%I

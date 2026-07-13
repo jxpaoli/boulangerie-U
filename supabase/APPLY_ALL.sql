@@ -1,8 +1,11 @@
 -- ==================================================================
 -- Point Chaud — APPLIQUER TOUT (migrations 0001 -> 0004)
--- À coller dans l'éditeur SQL Supabase du projet lrittnexagnqcnnxbzrx.
--- Généré depuis supabase/migrations/. Ordre respecté.
+-- À coller dans l'éditeur SQL Supabase (projet lrittnexagnqcnnxbzrx).
+-- Le DROP en tête permet de relancer proprement pendant l'installation.
 -- ==================================================================
+
+-- Reset propre (phase installation — aucune vraie donnée encore) :
+drop schema if exists point_chaud cascade;
 
 
 -- ############ supabase/migrations/0001_init_schema.sql ############
@@ -501,12 +504,19 @@ end $$;
 -- Politique de LECTURE générique : membres du même site
 --   (profiles : on peut lire les profils de son site)
 -- --------------------------------------------------------------------
+-- Tables « filles » sans colonne site_id (elles héritent via leur parent) :
+-- policies dédiées plus bas. On les EXCLUT de la boucle générique.
 do $$
 declare t text;
 begin
   for t in
     select tablename from pg_tables where schemaname = 'point_chaud'
-      and tablename not in ('sites')
+      and tablename not in (
+        'sites',
+        'supplier_order_rules', 'supplier_closures', 'prep_template_lines',
+        'stock_count_lines', 'purchase_order_lines', 'order_status_history',
+        'delivery_lines', 'delivery_documents'
+      )
   loop
     execute format($f$
       create policy pc_select_same_site on point_chaud.%I
