@@ -7,6 +7,7 @@ import {
   demoSuppliers,
   demoPrepas,
   FAMILY_ORDER,
+  demoDeliveries,
 } from '@/features/demo/data'
 import type {
   DataServices,
@@ -17,6 +18,8 @@ import type {
   ReceptionLine,
   Category,
   CountLine,
+  PurchaseOrder,
+  PlaceOrderInput,
 } from '@/services/types'
 
 function familyPosition(name: string): number {
@@ -30,6 +33,29 @@ const balances: Record<string, number> = Object.fromEntries(
 )
 // idempotence : lots déjà enregistrés
 const seenBatches = new Set<string>()
+const mockOrders: PurchaseOrder[] = demoDeliveries.map((d, index) => ({
+  id: d.id,
+  supplierId: d.supplierId,
+  supplierName: demoSuppliers.find((s) => s.id === d.supplierId)?.name ?? 'Fournisseur',
+  status: 'ordered',
+  coverFrom: null,
+  coverUntil: null,
+  channel: 'phone',
+  orderedAt: new Date(Date.now() - (index + 1) * 86_400_000).toISOString(),
+  orderedBy: 'u-sabrina',
+  orderedByName: 'Sabrina',
+  lines: d.lines.map((l) => ({
+    productId: l.productId,
+    packSize: demoProducts.find((p) => p.id === l.productId)?.packSize ?? 1,
+    proposedPacks: 0,
+    checkedPacks: null,
+    finalPacks: Math.round(
+      l.orderedUnits / (demoProducts.find((p) => p.id === l.productId)?.packSize ?? 1),
+    ),
+    visualCheck: null,
+    note: '',
+  })),
+}))
 
 function toProduct(p: (typeof demoProducts)[number]): Product {
   return {
@@ -69,6 +95,36 @@ export const mockServices: DataServices = {
         .map((name) => ({ id: name, name, position: familyPosition(name) }))
     },
   },
+  orders: {
+    async place(input: PlaceOrderInput): Promise<string> {
+      const existing = mockOrders.find((o) => o.id === input.idempotencyKey)
+      if (existing) return existing.id
+      const id = input.idempotencyKey
+      mockOrders.unshift({
+        id,
+        supplierId: input.supplierId,
+        supplierName: demoSuppliers.find((s) => s.id === input.supplierId)?.name ?? 'Fournisseur',
+        status: 'ordered',
+        coverFrom: input.coverFrom,
+        coverUntil: input.coverUntil,
+        channel: input.channel,
+        orderedAt: new Date().toISOString(),
+        orderedBy: 'u-sabrina',
+        orderedByName: 'Sabrina',
+        lines: input.lines.map((line) => ({
+          ...line,
+          packSize: demoProducts.find((p) => p.id === line.productId)?.packSize ?? 1,
+        })),
+      })
+      return id
+    },
+    async listPendingReception() {
+      return mockOrders.filter((o) => o.status === 'ordered').map((o) => structuredClone(o))
+    },
+    async listHistory(limit = 100) {
+      return mockOrders.slice(0, limit).map((o) => structuredClone(o))
+    },
+  },
   stock: {
     async balances(): Promise<Record<string, number>> {
       return { ...balances }
@@ -93,6 +149,10 @@ export const mockServices: DataServices = {
         if (l.acceptedUnits > 0) balances[l.productId] = (balances[l.productId] ?? 0) + l.acceptedUnits
       }
       seenBatches.add(idempotencyKey)
+      if (_orderId) {
+        const order = mockOrders.find((o) => o.id === _orderId)
+        if (order) order.status = 'received'
+      }
     },
     async recordInventory(_kind, lines): Promise<void> {
       for (const l of lines) balances[l.productId] = Math.max(0, l.countedUnits)

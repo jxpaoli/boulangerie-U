@@ -56,6 +56,45 @@ export interface ReceptionLine {
   note?: string
 }
 
+export interface PurchaseOrderLine {
+  productId: string
+  packSize: number
+  proposedPacks: number
+  checkedPacks: number | null
+  finalPacks: number
+  visualCheck: { full: number; partIdx: number; seenUnits: number; theoreticalUnits: number } | null
+  note: string
+}
+
+export interface PurchaseOrder {
+  id: string
+  supplierId: string
+  supplierName: string
+  status: 'ordered' | 'received' | 'closed' | 'cancelled' | string
+  coverFrom: string | null
+  coverUntil: string | null
+  channel: string
+  orderedAt: string
+  orderedBy: string | null
+  orderedByName: string
+  lines: PurchaseOrderLine[]
+}
+
+export interface PlaceOrderInput {
+  idempotencyKey: string
+  supplierId: string
+  coverFrom: string
+  coverUntil: string
+  channel: string
+  lines: Omit<PurchaseOrderLine, 'packSize'>[]
+}
+
+export interface OrderService {
+  place(input: PlaceOrderInput): Promise<string>
+  listPendingReception(): Promise<PurchaseOrder[]>
+  listHistory(limit?: number): Promise<PurchaseOrder[]>
+}
+
 export interface Category {
   id: string
   name: string
@@ -173,4 +212,5 @@ export interface DataServices {
   stock: StockService
   admin: AdminService
   inventory: InventoryService
+  orders: OrderService
 }

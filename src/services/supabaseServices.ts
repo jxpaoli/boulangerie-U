@@ -16,6 +16,8 @@ import type {
   CategoryInput,
   CountLine,
   InventoryRecord,
+  PurchaseOrder,
+  PlaceOrderInput,
 } from '@/services/types'
 import type { SupplierCalendar, Weekday } from '@/lib/orderCalendar'
 import { toParisCivil, weekday } from '@/lib/orderCalendar'
@@ -57,6 +59,55 @@ function supplierCalendar(row: Record<string, unknown>): SupplierCalendar {
 
 function deliveryLabel(orderDays: number[]): string {
   return orderDays.map((d) => WEEKDAYS_SHORT[d] ?? '?').join(' · ')
+}
+
+async function listOrders(status: string | null, limit = 100): Promise<PurchaseOrder[]> {
+  let query = client()
+    .from('purchase_orders')
+    .select(`
+      id, supplier_id, status, cover_from, cover_until, channel, sent_at, created_at, created_by,
+      supplier:suppliers(name),
+      lines:purchase_order_lines(
+        product_id, pack_size, proposed_packs, checked_packs, final_packs, visual_check, note
+      )
+    `)
+    .order('sent_at', { ascending: false })
+    .limit(limit)
+  if (status) query = query.eq('status', status)
+
+  const [{ data, error }, { data: profiles, error: profileError }] = await Promise.all([
+    query,
+    client().from('profiles').select('id, display_name'),
+  ])
+  if (error) throw error
+  if (profileError) throw profileError
+
+  const names = new Map((profiles ?? []).map((p) => [p.id as string, p.display_name as string]))
+  return (data ?? []).map((row): PurchaseOrder => {
+    const supplier = relatedOne(row.supplier)
+    const actor = row.created_by as string | null
+    return {
+      id: row.id as string,
+      supplierId: row.supplier_id as string,
+      supplierName: (supplier?.name as string) ?? 'Fournisseur',
+      status: row.status as string,
+      coverFrom: (row.cover_from as string | null) ?? null,
+      coverUntil: (row.cover_until as string | null) ?? null,
+      channel: (row.channel as string) ?? 'phone',
+      orderedAt: ((row.sent_at ?? row.created_at) as string),
+      orderedBy: actor,
+      orderedByName: (actor && names.get(actor)) || 'Utilisateur inconnu',
+      lines: ((row.lines as Record<string, unknown>[]) ?? []).map((line) => ({
+        productId: line.product_id as string,
+        packSize: line.pack_size as number,
+        proposedPacks: (line.proposed_packs as number) ?? 0,
+        checkedPacks: (line.checked_packs as number | null) ?? null,
+        finalPacks: (line.final_packs as number) ?? 0,
+        visualCheck: (line.visual_check as PurchaseOrder['lines'][number]['visualCheck']) ?? null,
+        note: (line.note as string) ?? '',
+      })),
+    }
+  })
 }
 
 export const supabaseServices: DataServices = {
@@ -167,6 +218,34 @@ export const supabaseServices: DataServices = {
         name: r.name as string,
         position: (r.position as number) ?? 0,
       }))
+    },
+  },
+
+  orders: {
+    async place(input: PlaceOrderInput): Promise<string> {
+      const { data, error } = await client().rpc('place_purchase_order', {
+        p_supplier_id: input.supplierId,
+        p_cover_from: input.coverFrom,
+        p_cover_until: input.coverUntil,
+        p_lines: input.lines.map((line) => ({
+          product_id: line.productId,
+          proposed_packs: line.proposedPacks,
+          checked_packs: line.checkedPacks,
+          final_packs: line.finalPacks,
+          visual_check: line.visualCheck,
+          note: line.note || null,
+        })),
+        p_idempotency_key: input.idempotencyKey,
+        p_channel: input.channel,
+      })
+      if (error) throw error
+      return data as string
+    },
+    async listPendingReception(): Promise<PurchaseOrder[]> {
+      return listOrders('ordered')
+    },
+    async listHistory(limit = 100): Promise<PurchaseOrder[]> {
+      return listOrders(null, limit)
     },
   },
 

@@ -3,12 +3,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Truck, ChevronRight, Minus, Plus, Check, PackageCheck } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
-import { demoDeliveries, type DemoDelivery } from '@/features/demo/data'
-import { services, type Product } from '@/services'
-import { formatPacks, plural } from '@/lib/format'
+import { services, type Product, type PurchaseOrder } from '@/services'
+import { formatDayLong, formatPacks, plural } from '@/lib/format'
 
 export function ReceptionsPage() {
-  const [selected, setSelected] = useState<DemoDelivery | null>(null)
+  const [selected, setSelected] = useState<PurchaseOrder | null>(null)
   const { data: products = [] } = useQuery({
     queryKey: ['products'],
     queryFn: () => services.catalog.listProducts(),
@@ -18,9 +17,10 @@ export function ReceptionsPage() {
     queryFn: () => services.catalog.listSuppliers(),
   })
 
-  // en vrai (Supabase), les livraisons viennent des commandes envoyées (à venir).
-  // en démo (mock), on montre des livraisons d'exemple.
-  const deliveries = services.source === 'mock' ? demoDeliveries : []
+  const { data: deliveries = [], isLoading, error } = useQuery({
+    queryKey: ['orders', 'pending-reception'],
+    queryFn: () => services.orders.listPendingReception(),
+  })
 
   const byId = useMemo(() => {
     const m: Record<string, Product> = {}
@@ -40,8 +40,12 @@ export function ReceptionsPage() {
     )
 
   return (
-    <AppShell eyebrow="Réception" title="Livraisons attendues" subtitle="Vendredi 10 juillet">
-      {deliveries.length === 0 ? (
+    <AppShell eyebrow="Réception" title="Livraisons attendues" subtitle={cap(formatDayLong(new Date()))}>
+      {isLoading ? (
+        <div className="mt-8 text-center text-[13px] text-ink-3">Chargement…</div>
+      ) : error ? (
+        <div className="mt-8 text-center text-[13px] text-danger">Livraisons indisponibles.</div>
+      ) : deliveries.length === 0 ? (
         <div className="mt-8 text-center text-[13px] text-ink-3">
           Aucune livraison à réceptionner.
         </div>
@@ -55,7 +59,7 @@ export function ReceptionsPage() {
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-semibold">{supplierName(d.supplierId)}</div>
                 <div className="text-[11.5px] text-ink-2">
-                  {d.orderedAtLabel} · {d.expectedLabel}
+                  Commandée {formatReceptionDate(d.orderedAt)} · par {d.orderedByName}
                 </div>
               </div>
               <Badge tone="crust">
@@ -68,7 +72,7 @@ export function ReceptionsPage() {
       )}
       <p className="mt-4 px-1 text-[11.5px] text-ink-3">
         Seule la quantité <b>acceptée</b> entre en stock. Ce qui manque n'entre pas — il reviendra
-        dans la prochaine commande. Données de démo.
+        dans la prochaine commande.
       </p>
     </AppShell>
   )
@@ -80,7 +84,7 @@ function Reception({
   supplierName,
   onBack,
 }: {
-  delivery: DemoDelivery
+  delivery: PurchaseOrder
   byId: Record<string, Product>
   supplierName: string
   onBack: () => void
@@ -90,20 +94,18 @@ function Reception({
 
   const [acceptedPacks, setAcceptedPacks] = useState<Record<string, number>>(() =>
     Object.fromEntries(
-      delivery.lines.map((l) => [l.productId, Math.round(l.orderedUnits / (byId[l.productId]?.packSize ?? 1))]),
+      delivery.lines.map((l) => [l.productId, l.finalPacks]),
     ),
   )
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [done, setDone] = useState(false)
-
-  function orderedPacks(productId: string, orderedUnits: number): number {
-    return Math.round(orderedUnits / packSize(productId))
-  }
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   function setConforme() {
     setAcceptedPacks(
       Object.fromEntries(
-        delivery.lines.map((l) => [l.productId, orderedPacks(l.productId, l.orderedUnits)]),
+        delivery.lines.map((l) => [l.productId, l.finalPacks]),
       ),
     )
   }
@@ -113,23 +115,34 @@ function Reception({
     0,
   )
   const anyShort = delivery.lines.some(
-    (l) => (acceptedPacks[l.productId] ?? 0) < orderedPacks(l.productId, l.orderedUnits),
+    (l) => (acceptedPacks[l.productId] ?? 0) < l.finalPacks,
   )
 
   async function validate() {
-    await services.stock.recordReception(
-      delivery.id, // clé d'idempotence stable
-      delivery.supplierId,
-      null,
-      delivery.lines.map((l) => ({
-        productId: l.productId,
-        orderedUnits: l.orderedUnits,
-        acceptedUnits: (acceptedPacks[l.productId] ?? 0) * packSize(l.productId),
-        note: notes[l.productId],
-      })),
-    )
-    await qc.invalidateQueries({ queryKey: ['products'] })
-    setDone(true)
+    setSaving(true)
+    setError('')
+    try {
+      await services.stock.recordReception(
+        `receive-${delivery.id}`, // clé d'idempotence stable
+        delivery.supplierId,
+        delivery.id,
+        delivery.lines.map((l) => ({
+          productId: l.productId,
+          orderedUnits: l.finalPacks * l.packSize,
+          acceptedUnits: (acceptedPacks[l.productId] ?? 0) * packSize(l.productId),
+          note: notes[l.productId],
+        })),
+      )
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['products'] }),
+        qc.invalidateQueries({ queryKey: ['orders'] }),
+      ])
+      setDone(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Impossible d'enregistrer la réception.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (done) {
@@ -143,7 +156,7 @@ function Reception({
           <div className="mt-3 flex w-full flex-col gap-1.5 px-2">
             {delivery.lines.map((l) => {
               const packs = acceptedPacks[l.productId] ?? 0
-              const short = packs < orderedPacks(l.productId, l.orderedUnits)
+              const short = packs < l.finalPacks
               return (
                 <div
                   key={l.productId}
@@ -183,7 +196,7 @@ function Reception({
       <div className="mt-3 flex flex-col gap-2">
         {delivery.lines.map((l) => {
           const p = byId[l.productId]
-          const ordered = orderedPacks(l.productId, l.orderedUnits)
+          const ordered = l.finalPacks
           const accepted = acceptedPacks[l.productId] ?? 0
           const short = accepted < ordered
           return (
@@ -192,7 +205,7 @@ function Reception({
                 <div className="min-w-0 flex-1">
                   <div className="text-[14.5px] font-semibold">{p?.name ?? l.productId}</div>
                   <div className="tabnums text-[11px] text-ink-3">
-                    Commandé {formatPacks(l.orderedUnits, packSize(l.productId), p?.packLabel ?? 'carton')}
+                    Commandé {formatPacks(l.finalPacks * l.packSize, l.packSize, p?.packLabel ?? 'carton')}
                   </div>
                 </div>
                 <div className="flex items-center overflow-hidden rounded-[11px] border border-line bg-surface-2">
@@ -250,8 +263,25 @@ function Reception({
         <Button variant="ghost" onClick={onBack}>
           Retour
         </Button>
-        <Button onClick={validate}>Valider la réception</Button>
+        <Button onClick={validate} disabled={saving}>
+          {saving ? 'Enregistrement…' : 'Valider la réception'}
+        </Button>
       </div>
+      {error && <p className="mt-3 text-center text-[11.5px] font-semibold text-danger">{error}</p>}
     </AppShell>
   )
+}
+
+function formatReceptionDate(value: string): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Paris',
+  }).format(new Date(value))
+}
+
+function cap(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }

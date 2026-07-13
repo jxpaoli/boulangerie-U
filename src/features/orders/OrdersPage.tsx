@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Phone,
   ChevronRight,
@@ -11,10 +11,12 @@ import {
   Plus,
   Eye,
   RefreshCw,
+  History,
+  Clock3,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge, Button } from '@/components/ui'
-import { services, type Supplier, type Product } from '@/services'
+import { services, type Supplier, type Product, type PurchaseOrder } from '@/services'
 import {
   supplierPlan,
   coverageEnd,
@@ -100,6 +102,7 @@ function orderProducts(allProducts: Product[], supplier: Supplier, meta: OrderMe
 
 export function OrdersPage() {
   const [selected, setSelected] = useState<Supplier | null>(null)
+  const [view, setView] = useState<'today' | 'history'>('today')
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => services.catalog.listSuppliers(),
@@ -109,6 +112,11 @@ export function OrdersPage() {
     queryFn: () => services.catalog.listProducts(),
   })
   const dueSuppliers = useMemo(() => suppliers.filter((s) => s.dueToday), [suppliers])
+  const { data: history = [], isLoading: historyLoading, error: historyError } = useQuery({
+    queryKey: ['orders', 'history'],
+    queryFn: () => services.orders.listHistory(),
+    enabled: view === 'history',
+  })
 
   if (selected)
     return (
@@ -116,12 +124,39 @@ export function OrdersPage() {
         supplier={selected}
         allProducts={allProducts}
         onBack={() => setSelected(null)}
+        onPlaced={() => {
+          setSelected(null)
+          setView('history')
+        }}
       />
     )
 
   return (
     <AppShell eyebrow="Commande" title="Commandes du jour" subtitle={cap(formatDayLong(new Date()))}>
-      <div className="mt-2 flex flex-col gap-2">
+      <div className="mt-1 grid grid-cols-2 rounded-xl bg-surface-2 p-1">
+        <button
+          className={`rounded-[9px] py-2 text-[12.5px] font-bold ${view === 'today' ? 'bg-surface text-ink shadow-sm' : 'text-ink-2'}`}
+          onClick={() => setView('today')}
+        >
+          À passer
+        </button>
+        <button
+          className={`flex items-center justify-center gap-1.5 rounded-[9px] py-2 text-[12.5px] font-bold ${view === 'history' ? 'bg-surface text-ink shadow-sm' : 'text-ink-2'}`}
+          onClick={() => setView('history')}
+        >
+          <History size={14} /> Historique
+        </button>
+      </div>
+
+      {view === 'history' ? (
+        historyLoading ? (
+          <div className="mt-8 text-center text-[13px] text-ink-3">Chargement…</div>
+        ) : historyError ? (
+          <div className="mt-8 text-center text-[13px] text-danger">Historique indisponible.</div>
+        ) : (
+          <OrderHistory orders={history} products={allProducts} />
+        )
+      ) : <><div className="mt-2 flex flex-col gap-2">
         {dueSuppliers.map((s) => {
           const meta = orderMeta(s)
           const products = orderProducts(allProducts, s, meta)
@@ -150,9 +185,61 @@ export function OrdersPage() {
       </div>
       <p className="mt-4 px-1 text-[11.5px] text-ink-3">
         Quantités calculées pour couvrir jusqu'à la livraison d'après la prochaine (filet +1
-        livraison), plafonnées par la place au congélo. Données de démo.
+        livraison), plafonnées par la place au congélo.
       </p>
+      </>}
     </AppShell>
+  )
+}
+
+function OrderHistory({ orders, products }: { orders: PurchaseOrder[]; products: Product[] }) {
+  const [open, setOpen] = useState<string | null>(null)
+  const names = useMemo(() => new Map(products.map((p) => [p.id, p.name])), [products])
+  if (orders.length === 0)
+    return <div className="mt-8 text-center text-[13px] text-ink-3">Aucune commande enregistrée.</div>
+
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      {orders.map((order) => {
+        const expanded = open === order.id
+        const units = order.lines.reduce((sum, line) => sum + line.finalPacks * line.packSize, 0)
+        return (
+          <Card key={order.id} onClick={() => setOpen(expanded ? null : order.id)}>
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-[15px] font-extrabold text-crust-ink">
+                {order.supplierName[0]}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate text-[14.5px] font-semibold">{order.supplierName}</div>
+                  <Badge tone={order.status === 'ordered' ? 'crust' : 'ok'}>
+                    {order.status === 'ordered' ? 'à recevoir' : order.status === 'received' ? 'reçue' : order.status}
+                  </Badge>
+                </div>
+                <div className="mt-0.5 flex items-center gap-1 text-[11.5px] text-ink-2">
+                  <Clock3 size={12} /> {formatOrderDate(order.orderedAt)} · par {order.orderedByName}
+                </div>
+                <div className="tabnums mt-0.5 text-[11px] text-ink-3">
+                  {order.lines.length} réf. · {units} unités
+                </div>
+              </div>
+            </div>
+            {expanded && (
+              <div className="mt-3 border-t border-line pt-2">
+                {order.lines.map((line) => (
+                  <div key={line.productId} className="flex justify-between gap-3 py-1 text-[12px]">
+                    <span className="truncate text-ink-2">{names.get(line.productId) ?? 'Produit'}</span>
+                    <span className="tabnums flex-shrink-0 font-bold">
+                      {line.finalPacks} carton{line.finalPacks > 1 ? 's' : ''} · {line.finalPacks * line.packSize} u.
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )
+      })}
+    </div>
   )
 }
 
@@ -160,10 +247,12 @@ function SupplierOrder({
   supplier,
   allProducts,
   onBack,
+  onPlaced,
 }: {
   supplier: Supplier
   allProducts: Product[]
   onBack: () => void
+  onPlaced: () => void
 }) {
   const meta = useMemo(() => orderMeta(supplier), [supplier])
   const products = useMemo(
@@ -198,7 +287,9 @@ function SupplierOrder({
         products={products}
         packsFor={packsFor}
         notes={notes}
+        checks={checks}
         onBack={() => setSent(false)}
+        onPlaced={onPlaced}
       />
     )
   }
@@ -502,16 +593,24 @@ function ExportView({
   products,
   packsFor,
   notes,
+  checks,
   onBack,
+  onPlaced,
 }: {
   supplier: Supplier
   meta: OrderMeta
   products: Product[]
   packsFor: (p: Product) => number
   notes: Record<string, string>
+  checks: Record<string, VisualCheck | undefined>
   onBack: () => void
+  onPlaced: () => void
 }) {
+  const qc = useQueryClient()
   const [copied, setCopied] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const text = useMemo(() => {
     const head = [
@@ -539,6 +638,52 @@ function ExportView({
       setTimeout(() => setCopied(false), 1800)
     } catch {
       setCopied(false)
+    }
+  }
+
+  async function placeOrder() {
+    const lines = products
+      .filter((p) => packsFor(p) > 0)
+      .map((p) => {
+        const check = checks[p.id]
+        const seenUnits = check
+          ? check.full * p.packSize + partUnits(p.packSize, check.partIdx)
+          : p.stockUnits
+        return {
+          productId: p.id,
+          proposedPacks: proposalFor(p, p.stockUnits, meta).packs,
+          checkedPacks: check ? proposalFor(p, seenUnits, meta).packs : null,
+          finalPacks: packsFor(p),
+          visualCheck: check
+            ? { ...check, seenUnits, theoreticalUnits: p.stockUnits }
+            : null,
+          note: notes[p.id] ?? '',
+        }
+      })
+    if (lines.length === 0) {
+      setError('La commande ne contient aucun carton.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      await services.orders.place({
+        idempotencyKey,
+        supplierId: supplier.id,
+        coverFrom: civilISO(meta.d1),
+        coverUntil: civilISO(meta.cov),
+        channel: 'phone',
+        lines,
+      })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['orders'] }),
+        qc.invalidateQueries({ queryKey: ['products'] }),
+      ])
+      onPlaced()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Impossible d'enregistrer la commande.")
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -576,10 +721,13 @@ function ExportView({
         <Button variant="ghost" onClick={onBack}>
           Modifier
         </Button>
-        <Button onClick={onBack}>Commande passée ✓</Button>
+        <Button onClick={placeOrder} disabled={saving}>
+          {saving ? 'Enregistrement…' : 'Commande passée ✓'}
+        </Button>
       </div>
+      {error && <p className="mt-3 text-center text-[11.5px] font-semibold text-danger">{error}</p>}
       <p className="mt-3 text-center text-[11px] text-ink-3">
-        L'export PDF et l'enregistrement en base viendront avec le branchement Supabase.
+        La validation enregistre la commande, son auteur et l'heure, puis l'envoie en réception.
       </p>
     </AppShell>
   )
@@ -601,4 +749,16 @@ function ecart(seen: number, theo: number): string {
 
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function civilISO(c: Civil): string {
+  return `${c.y}-${String(c.m).padStart(2, '0')}-${String(c.d).padStart(2, '0')}`
+}
+
+function formatOrderDate(value: string): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Europe/Paris',
+  }).format(new Date(value))
 }

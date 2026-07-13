@@ -16,5 +16,8 @@ export type {
   ExitLine,
   CountLine,
   InventoryRecord,
+  PurchaseOrder,
+  PurchaseOrderLine,
+  PlaceOrderInput,
   DataServices,
 } from '@/services/types'
