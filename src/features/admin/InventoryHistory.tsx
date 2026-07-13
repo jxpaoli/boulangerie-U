@@ -4,14 +4,14 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, ClipboardCheck, FileDown, Printer } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card } from '@/components/ui'
-import { services, type CountLine, type Product } from '@/services'
+import { services, type CountLine } from '@/services'
 import { formatDate, formatTime } from '@/lib/format'
 
 interface Row {
   name: string
   theo: number
-  counted: number
-  gap: number
+  counted: number | string
+  gap: number | string
   by: string
 }
 
@@ -37,27 +37,29 @@ export function InventoryHistory() {
     enabled: !!selected,
   })
 
-  const byId = useMemo(() => {
-    const m: Record<string, Product> = {}
-    for (const p of products) m[p.id] = p
+  const lineOf = useMemo(() => {
+    const m: Record<string, CountLine> = {}
+    for (const l of lines) m[l.productId] = l
     return m
-  }, [products])
+  }, [lines])
 
-  const rows: Row[] = useMemo(
-    () =>
-      lines.map((l: CountLine) => {
-        const p = byId[l.productId]
-        const theo = l.theoreticalUnits ?? p?.stockUnits ?? 0
-        return {
-          name: p?.name ?? l.productId,
-          theo,
-          counted: l.countedUnits,
-          gap: l.countedUnits - theo,
-          by: l.validatedBy ? (members[l.validatedBy] ?? '') : '',
-        }
-      }),
-    [lines, byId, members],
-  )
+  // TOUS les produits du catalogue ; les non comptés apparaissent vides
+  const rows: Row[] = useMemo(() => {
+    const sorted = [...products].sort(
+      (a, b) => a.categoryPosition - b.categoryPosition || a.name.localeCompare(b.name),
+    )
+    return sorted.map((p) => {
+      const l = lineOf[p.id]
+      const theo = l?.theoreticalUnits ?? p.stockUnits
+      return {
+        name: p.name,
+        theo,
+        counted: l ? l.countedUnits : '',
+        gap: l ? l.countedUnits - theo : '',
+        by: l?.validatedBy ? (members[l.validatedBy] ?? '') : '',
+      }
+    })
+  }, [products, lineOf, members])
 
   const label = (r: { validatedAt: string | null; validatedBy: string | null }) => {
     const d = r.validatedAt ? new Date(r.validatedAt) : null
@@ -111,10 +113,14 @@ export function InventoryHistory() {
                   <td
                     className={
                       'p-2 text-right font-semibold ' +
-                      (r.gap < 0 ? 'text-warn' : r.gap > 0 ? 'text-crust-ink' : 'text-ink-3')
+                      (typeof r.gap === 'number' && r.gap < 0
+                        ? 'text-warn'
+                        : typeof r.gap === 'number' && r.gap > 0
+                          ? 'text-crust-ink'
+                          : 'text-ink-3')
                     }
                   >
-                    {r.gap > 0 ? `+${r.gap}` : r.gap}
+                    {typeof r.gap === 'number' && r.gap > 0 ? `+${r.gap}` : r.gap}
                   </td>
                 </tr>
               ))}
