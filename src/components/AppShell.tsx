@@ -30,12 +30,14 @@ export function AppShell({
   subtitle,
   children,
   action,
+  compact = false,
 }: {
   title: string
   eyebrow?: string
   subtitle?: ReactNode
   children: ReactNode
   action?: ReactNode
+  compact?: boolean
 }) {
   const { theme, toggle } = useTheme()
   const { user, signOut } = useAuth()
@@ -109,7 +111,7 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="flex-1 px-5 pb-32">{children}</main>
+      <main className={cn('flex-1 px-5', compact ? 'pb-24' : 'pb-32')}>{children}</main>
 
       <nav className="glass fixed inset-x-3 bottom-3 z-20 mx-auto max-w-[520px] rounded-[24px] border border-line/80 p-1.5 shadow-[0_18px_50px_rgba(10,15,35,.24)]">
         <div className="flex gap-1">
