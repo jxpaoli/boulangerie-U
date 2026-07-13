@@ -66,9 +66,9 @@ export const demoProducts: DemoProduct[] = [
     location: 'Congélateur',
     packSize: 24,
     packLabel: 'carton',
-    stockUnits: 14,
+    stockUnits: 72,
     minUnits: 24,
-    maxUnits: 48,
+    maxUnits: 96,
     conso: [12, 12, 15, 18, 30, 40, 25],
   },
   {
@@ -131,4 +131,46 @@ export const demoProducts: DemoProduct[] = [
 
 export function supplierOf(p: DemoProduct): DemoSupplier {
   return demoSuppliers.find((s) => s.id === p.supplierId) ?? demoSuppliers[0]!
+}
+
+/**
+ * Préparation = sortie groupée de produits (four OU décongélation, peu importe).
+ * Souvent récurrente (« prépa du matin »). Le modèle propose des quantités, ajustables.
+ * Voir docs/BUSINESS_RULES.md §12bis.
+ */
+export interface DemoPrepaLine {
+  productId: string
+  units: number
+}
+export interface DemoPrepa {
+  id: string
+  name: string
+  time: string
+  lines: DemoPrepaLine[]
+}
+
+export const demoPrepas: DemoPrepa[] = [
+  {
+    id: 'prep-matin',
+    name: 'Prépa du matin',
+    time: '06:30',
+    lines: [
+      { productId: 'p-baguette', units: 48 },
+      { productId: 'p-croissant', units: 120 },
+      { productId: 'p-cereales', units: 20 },
+    ],
+  },
+  {
+    id: 'prep-midi',
+    name: 'Prépa de midi',
+    time: '11:00',
+    lines: [
+      { productId: 'p-pizza', units: 12 },
+      { productId: 'p-quiche', units: 15 },
+    ],
+  },
+]
+
+export function productById(id: string): DemoProduct | undefined {
+  return demoProducts.find((p) => p.id === id)
 }

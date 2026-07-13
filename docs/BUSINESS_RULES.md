@@ -209,6 +209,32 @@ des sorties oubliées). L'inventaire initial est un cas particulier (mouvements 
 - **Stock négatif interdit par défaut.** Un responsable peut forcer avec motif
   obligatoire + journalisation + alerte d'inventaire.
 
+## 12bis. Préparations (sorties groupées récurrentes)
+
+Dans la réalité, la responsable ne sort pas les produits un par un : elle sort une
+**préparation** — un groupe de produits d'un coup. Certaines sont **récurrentes**
+(« prépa du matin » : toujours à peu près le même pain + viennoiseries).
+
+Le terme retenu est **« préparation »** (pas « fournée ») car tout ne passe pas au
+four : certains produits sont juste **mis à décongeler**. Pour le stock, **cuisson ou
+décongélation, c'est identique** : sorti du congélateur = décompté (§1). L'application
+**ne distingue pas** four / décongélation (décision : inutile en V1).
+
+Fonctionnement :
+- Une **préparation type** (modèle) = un nom + une liste de produits avec quantités
+  par défaut (`prep-…`). Ex. « Prépa du matin » = 48 baguettes + 120 croissants + 20 pains.
+- La responsable sélectionne la préparation → quantités **pré-remplies**, **ajustables**
+  ce jour-là → **une seule validation** sort tout.
+- Une **préparation libre** (composée à la volée) reste possible, ainsi que la
+  **sortie d'un seul produit**.
+- Côté journal : une préparation crée **un mouvement `sortie` par produit**, mais tous
+  **rattachés à la même préparation** (id + libellé + horodatage). Bénéfices : traçabilité,
+  **annulation groupée** de toute la préparation, et prévision de conso plus juste
+  (les sorties suivent des préparations récurrentes).
+
+Modèle de données prévu : `prep_templates` / `prep_template_lines` (les modèles) et un
+`prep_batch_id` sur les `stock_movements` d'une même sortie groupée.
+
 ## 13. Rôles (V1 = mono-utilisateur, base prête pour 3 rôles)
 
 Le modèle de données porte 3 rôles (`admin`, `manager`, `operator`) et un `site_id`,
