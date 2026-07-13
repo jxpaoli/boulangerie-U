@@ -116,6 +116,20 @@ Puis conversion en commande :
 
 **Tout arrondi est expliqué à l'utilisateur** (brut → arrondi → final).
 
+### Marge de sécurité : +1 livraison (filet « commande de secours »)
+
+Décision : une commande ne couvre pas seulement jusqu'à la **prochaine** livraison,
+mais jusqu'à la **livraison d'après** — **un cycle de livraison entier de marge**.
+
+- La responsable porte ainsi en permanence ~1 livraison de stock d'avance : une commande
+  ratée, oubliée, ou une livraison incomplète ne la met **pas en rupture**.
+- Paramètre `safetyDeliveries` = **1 par défaut** (global), **surchargeable par produit**
+  (0 = au plus juste, 2 = produit critique).
+- La **période à couvrir** devient donc `D1 → D(2 + safetyDeliveries)` (au lieu de `D1 → D2`).
+- ⚠️ **Interaction avec le plafond congélo (§7)** : le filet demande *plus* de stock, le
+  plafond *limite*. Si le filet ne rentre pas, on commande le maximum possible et on
+  avertit (« filet de sécurité réduit, place insuffisante »).
+
 ### Alerte rupture avant livraison (§12.3 CCTP)
 Si `stock_actuel < conso(maintenant → D1)` : afficher **« Risque de rupture avant
 la prochaine livraison »**. Cette alerte n'est **pas** masquée par la commande

@@ -1,8 +1,9 @@
 import { Routes, Route } from 'react-router-dom'
-import { ClipboardList, Truck } from 'lucide-react'
+import { Truck } from 'lucide-react'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { QuickExitPage } from '@/features/stock/QuickExitPage'
 import { StockListPage } from '@/features/stock/StockListPage'
+import { OrdersPage } from '@/features/orders/OrdersPage'
 import { ComingSoon } from '@/components/ComingSoon'
 
 export default function App() {
@@ -11,23 +12,7 @@ export default function App() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/sortie" element={<QuickExitPage />} />
       <Route path="/stock" element={<StockListPage />} />
-      <Route
-        path="/commandes"
-        element={
-          <ComingSoon
-            eyebrow="Commande"
-            title="Commandes"
-            icon={ClipboardList}
-            phase="Phase 4"
-            points={[
-              'Proposition automatique : couverture jusqu’à la prochaine livraison',
-              'Plafond congélo pris en compte, arrondi au carton expliqué',
-              'Contrôle visuel rapide (cartons pleins + carton entamé)',
-              'Note par ligne, validation, export bon de commande pour l’appel',
-            ]}
-          />
-        }
-      />
+      <Route path="/commandes" element={<OrdersPage />} />
       <Route
         path="/receptions"
         element={

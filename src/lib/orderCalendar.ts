@@ -124,6 +124,11 @@ function parisNow(now: Date): { civil: Civil; minutes: number } {
   }
 }
 
+/** Date civile « aujourd'hui » en Europe/Paris à partir d'un instant. */
+export function toParisCivil(now: Date): Civil {
+  return parisNow(now).civil
+}
+
 function parseHM(hm: string): number {
   const [h, m] = hm.split(':').map((x) => parseInt(x, 10))
   return (h ?? 0) * 60 + (m ?? 0)
@@ -169,14 +174,42 @@ export function deliveryDateFor(cal: SupplierCalendar, orderDate: Civil): Civil 
   return addDays(targetMonday, entry.deliveryDay)
 }
 
+/** Prochaine commande possible strictement APRÈS `orderDate`. */
+function nextOrderAfter(cal: SupplierCalendar, orderDate: Civil): Civil {
+  const dayAfter = addDays(orderDate, 1)
+  const midnight = new TZDate(dayAfter.y, dayAfter.m - 1, dayAfter.d, 0, 0, 0, PARIS)
+  return nextOrderDate(cal, new Date(midnight.getTime()))
+}
+
+/** Chaîne des `count` prochaines commandes et leurs livraisons, à partir de `now`. */
+export function orderChain(
+  cal: SupplierCalendar,
+  now: Date,
+  count: number,
+): { order: Civil; delivery: Civil }[] {
+  const chain: { order: Civil; delivery: Civil }[] = []
+  let order = nextOrderDate(cal, now)
+  for (let i = 0; i < count; i++) {
+    chain.push({ order, delivery: deliveryDateFor(cal, order) })
+    order = nextOrderAfter(cal, order)
+  }
+  return chain
+}
+
 /** Plan complet d'un fournisseur : prochaine commande, livraison, commande suivante, période à couvrir. */
 export function supplierPlan(cal: SupplierCalendar, now: Date): SupplierPlan {
-  const nextOrder = nextOrderDate(cal, now)
-  const d1 = deliveryDateFor(cal, nextOrder)
-  // C2 = prochaine commande possible APRÈS nextOrder : on repart du lendemain à minuit
-  const dayAfter = addDays(nextOrder, 1)
-  const dayAfterMidnight = new TZDate(dayAfter.y, dayAfter.m - 1, dayAfter.d, 0, 0, 0, PARIS)
-  const c2 = nextOrderDate(cal, new Date(dayAfterMidnight.getTime()))
-  const d2 = deliveryDateFor(cal, c2)
-  return { nextOrder, cutoff: cal.cutoff, d1, c2, d2 }
+  const chain = orderChain(cal, now, 2)
+  const first = chain[0]!
+  const second = chain[1]!
+  return { nextOrder: first.order, cutoff: cal.cutoff, d1: first.delivery, c2: second.order, d2: second.delivery }
+}
+
+/**
+ * Fin de la période à couvrir, avec marge de sécurité en nombre de livraisons.
+ * safetyDeliveries=0 -> couvre jusqu'à la prochaine livraison (D2, minimum).
+ * safetyDeliveries=1 -> couvre jusqu'à la livraison d'après (D3) : filet « +1 livraison ».
+ */
+export function coverageEnd(cal: SupplierCalendar, now: Date, safetyDeliveries: number): Civil {
+  const chain = orderChain(cal, now, 2 + safetyDeliveries)
+  return chain[1 + safetyDeliveries]!.delivery
 }

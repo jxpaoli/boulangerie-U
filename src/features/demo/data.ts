@@ -84,9 +84,9 @@ export const demoProducts: DemoProduct[] = [
     location: 'Congélateur',
     packSize: 24,
     packLabel: 'carton',
-    stockUnits: 72,
+    stockUnits: 100,
     minUnits: 24,
-    maxUnits: 96,
+    maxUnits: 144,
     conso: [12, 12, 15, 18, 30, 40, 25],
   },
   {
@@ -140,7 +140,7 @@ export const demoProducts: DemoProduct[] = [
     location: 'Congélateur',
     packSize: 15,
     packLabel: 'carton',
-    stockUnits: 9,
+    stockUnits: 28,
     minUnits: 15,
     maxUnits: 45,
     conso: [3, 3, 4, 5, 8, 10, 7],
@@ -150,6 +150,13 @@ export const demoProducts: DemoProduct[] = [
 export function supplierOf(p: DemoProduct): DemoSupplier {
   return demoSuppliers.find((s) => s.id === p.supplierId) ?? demoSuppliers[0]!
 }
+
+export function productsOfSupplier(supplierId: string): DemoProduct[] {
+  return demoProducts.filter((p) => p.supplierId === supplierId)
+}
+
+/** « Maintenant » figé pour la démo : vendredi 10 juillet 2026, 08:00 (Europe/Paris). */
+export const DEMO_NOW = new Date('2026-07-10T08:00:00+02:00')
 
 /**
  * Préparation = sortie groupée de produits (four OU décongélation, peu importe).
