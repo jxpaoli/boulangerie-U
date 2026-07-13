@@ -26,6 +26,13 @@ function client() {
   return supabase
 }
 
+/** PostgREST renvoie une relation 1-1 comme objet, et une relation 1-n comme tableau. */
+function relatedOne(value: unknown): Record<string, unknown> | null {
+  if (Array.isArray(value)) return (value[0] as Record<string, unknown> | undefined) ?? null
+  if (value && typeof value === 'object') return value as Record<string, unknown>
+  return null
+}
+
 function supplierCalendar(row: Record<string, unknown>): SupplierCalendar {
   const mode = (row.delivery_mode as string) === 'mapping' ? 'mapping' : 'lead'
   return {
@@ -99,10 +106,9 @@ export const supabaseServices: DataServices = {
       for (const b of bal ?? []) balances[b.product_id as string] = (b.stock_units as number) ?? 0
 
       return (products ?? []).map((row): Product => {
-        const sp = (row.supplier_products as Record<string, unknown>[] | null)?.[0]
+        const sp = relatedOne(row.supplier_products)
         const cat = row.category as { id?: string; name?: string; position?: number } | null
-        const fRows = row.forecast as unknown as Record<string, number>[] | null
-        const f = fRows?.[0] ?? null
+        const f = relatedOne(row.forecast) as Record<string, number> | null
         return {
           id: row.id as string,
           name: row.name as string,
