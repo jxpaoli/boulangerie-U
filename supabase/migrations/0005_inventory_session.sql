@@ -141,3 +141,6 @@ revoke all on function point_chaud.finish_inventory(uuid) from public;
 grant execute on function point_chaud.open_inventory() to authenticated;
 grant execute on function point_chaud.validate_count_line(uuid, uuid, int) to authenticated;
 grant execute on function point_chaud.finish_inventory(uuid) to authenticated;
+
+-- expose les nouvelles fonctions à l'API (évite PGRST202/205)
+notify pgrst, 'reload schema';
