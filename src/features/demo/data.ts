@@ -174,3 +174,36 @@ export const demoPrepas: DemoPrepa[] = [
 export function productById(id: string): DemoProduct | undefined {
   return demoProducts.find((p) => p.id === id)
 }
+
+/** Ordre d'affichage des familles (les inconnues passent après, dans l'ordre rencontré). */
+export const FAMILY_ORDER = [
+  'Baguettes',
+  'Pains',
+  'Viennoiseries',
+  'Pâtisseries',
+  'Tartes',
+  'Produits salés',
+  'Autres',
+] as const
+
+/** Regroupe des produits par famille, en respectant FAMILY_ORDER. */
+export function groupByFamily(
+  products: DemoProduct[],
+): { family: string; items: DemoProduct[] }[] {
+  const map = new Map<string, DemoProduct[]>()
+  for (const p of products) {
+    const arr = map.get(p.category) ?? []
+    arr.push(p)
+    map.set(p.category, arr)
+  }
+  const ordered: { family: string; items: DemoProduct[] }[] = []
+  for (const fam of FAMILY_ORDER) {
+    const items = map.get(fam)
+    if (items) {
+      ordered.push({ family: fam, items })
+      map.delete(fam)
+    }
+  }
+  for (const [family, items] of map) ordered.push({ family, items })
+  return ordered
+}

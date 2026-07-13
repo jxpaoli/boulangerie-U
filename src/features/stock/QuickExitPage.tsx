@@ -2,7 +2,13 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Search, Check, Minus, Plus, PackageMinus, Croissant, ChevronRight } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
-import { demoProducts, demoPrepas, productById, type DemoPrepa } from '@/features/demo/data'
+import {
+  demoProducts,
+  demoPrepas,
+  productById,
+  groupByFamily,
+  type DemoPrepa,
+} from '@/features/demo/data'
 import { formatPacks } from '@/lib/format'
 import { cn } from '@/lib/cn'
 
@@ -280,24 +286,33 @@ function SingleMode({
             className="w-full rounded-[14px] border border-line bg-surface py-3.5 pr-4 pl-11 text-[15px] text-ink placeholder:text-ink-3"
           />
         </div>
-        <div className="mt-3 flex flex-col gap-2">
-          {results.map((p) => (
-            <Card
-              key={p.id}
-              className="flex items-center gap-3"
-              onClick={() => {
-                setSelectedId(p.id)
-                setQty(1)
-              }}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
-                <div className="tabnums text-[11px] text-ink-3">
-                  Réf {p.ref} · reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
-                </div>
+        <div className="mt-3">
+          {groupByFamily(results).map((g) => (
+            <section key={g.family}>
+              <div className="mx-1 mt-4 mb-2 text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
+                {g.family}
               </div>
-              <PackageMinus size={20} className="text-crust" />
-            </Card>
+              <div className="flex flex-col gap-2">
+                {g.items.map((p) => (
+                  <Card
+                    key={p.id}
+                    className="flex items-center gap-3"
+                    onClick={() => {
+                      setSelectedId(p.id)
+                      setQty(1)
+                    }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
+                      <div className="tabnums text-[11px] text-ink-3">
+                        Réf {p.ref} · reste {formatPacks(stock[p.id] ?? 0, p.packSize, p.packLabel)}
+                      </div>
+                    </div>
+                    <PackageMinus size={20} className="text-crust" />
+                  </Card>
+                ))}
+              </div>
+            </section>
           ))}
           {results.length === 0 && (
             <div className="px-4 py-8 text-center text-[13px] text-ink-3">

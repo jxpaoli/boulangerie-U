@@ -2,20 +2,24 @@ import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge } from '@/components/ui'
-import { demoProducts } from '@/features/demo/data'
-import { formatPacks, WEEKDAYS_SHORT } from '@/lib/format'
+import { demoProducts, groupByFamily, type DemoProduct } from '@/features/demo/data'
+import { formatPacks } from '@/lib/format'
 
 export function StockListPage() {
   const [query, setQuery] = useState('')
 
-  const list = useMemo(() => {
+  const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
     const items = q
       ? demoProducts.filter(
           (p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q),
         )
       : demoProducts
-    return [...items].sort((a, b) => autonomy(a) - autonomy(b))
+    // à l'intérieur d'une famille, les plus urgents (autonomie faible) d'abord
+    return groupByFamily(items).map((g) => ({
+      ...g,
+      items: [...g.items].sort((a, b) => autonomy(a) - autonomy(b)),
+    }))
   }, [query])
 
   return (
@@ -25,45 +29,56 @@ export function StockListPage() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Chercher…"
+          placeholder="Chercher un produit ou une famille…"
           className="w-full rounded-[14px] border border-line bg-surface py-3.5 pr-4 pl-11 text-[15px] text-ink placeholder:text-ink-3"
         />
       </div>
 
-      <div className="mt-3 flex flex-col gap-2">
-        {list.map((p) => {
-          const days = autonomy(p)
-          const low = p.stockUnits < p.minUnits
-          return (
-            <Card key={p.id} className="flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
-                <div className="tabnums mt-0.5 text-[11px] text-ink-3">
-                  {p.category} · {formatPacks(p.stockUnits, p.packSize, p.packLabel)}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="tabnums text-[15px] font-extrabold">{p.stockUnits}</div>
-                <div className="text-[10px] text-ink-3">unités</div>
-              </div>
-              {low ? (
-                <Badge tone="warn">sous mini</Badge>
-              ) : (
-                <Badge tone="ok">~{days} j</Badge>
-              )}
-            </Card>
-          )
-        })}
-      </div>
+      {groups.length === 0 && (
+        <div className="mt-8 text-center text-[13px] text-ink-3">Aucun produit ne correspond.</div>
+      )}
+
+      {groups.map((g) => (
+        <section key={g.family}>
+          <div className="mx-1 mt-6 mb-2 flex items-center justify-between">
+            <h2 className="text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
+              {g.family}
+            </h2>
+            <span className="tabnums text-[11px] text-ink-3">{g.items.length}</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {g.items.map((p) => {
+              const days = autonomy(p)
+              const low = p.stockUnits < p.minUnits
+              return (
+                <Card key={p.id} className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14.5px] font-semibold">{p.name}</div>
+                    <div className="tabnums mt-0.5 text-[11px] text-ink-3">
+                      {formatPacks(p.stockUnits, p.packSize, p.packLabel)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="tabnums text-[15px] font-extrabold">{p.stockUnits}</div>
+                    <div className="text-[10px] text-ink-3">unités</div>
+                  </div>
+                  {low ? <Badge tone="warn">sous mini</Badge> : <Badge tone="ok">~{days} j</Badge>}
+                </Card>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+
       <p className="mt-6 text-center text-[11px] text-ink-3">
-        Autonomie estimée à partir de la conso {WEEKDAYS_SHORT.join('/')} · données de démo
+        Produits regroupés par famille · autonomie estimée · données de démo
       </p>
     </AppShell>
   )
 }
 
 /** Nombre de jours avant rupture au rythme de conso moyen (approx. démo). */
-function autonomy(p: { stockUnits: number; conso: number[] }): number {
+function autonomy(p: DemoProduct): number {
   const avg = p.conso.reduce((s, c) => s + c, 0) / 7
   if (avg <= 0) return 99
   return Math.floor(p.stockUnits / avg)
