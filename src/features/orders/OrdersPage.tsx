@@ -25,6 +25,7 @@ import {
   type Civil,
 } from '@/lib/orderCalendar'
 import { computeOrderProposal, type OrderProposal } from '@/lib/orderProposal'
+import { hasPlacedOrderForCycle } from '@/lib/orderCycle'
 import { formatPacks, formatDayLong, plural, packBreakdown } from '@/lib/format'
 import { isSignificantGap } from '@/features/demo/role'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -111,12 +112,20 @@ export function OrdersPage() {
     queryKey: ['products'],
     queryFn: () => services.catalog.listProducts(),
   })
-  const dueSuppliers = useMemo(() => suppliers.filter((s) => s.dueToday), [suppliers])
   const { data: history = [], isLoading: historyLoading, error: historyError } = useQuery({
     queryKey: ['orders', 'history'],
     queryFn: () => services.orders.listHistory(),
-    enabled: view === 'history',
   })
+  const dueSuppliers = useMemo(
+    () =>
+      suppliers
+        .filter((supplier) => supplier.dueToday)
+        .filter((supplier) => {
+          const meta = orderMeta(supplier)
+          return !hasPlacedOrderForCycle(history, supplier.id, civilISO(meta.d1))
+        }),
+    [suppliers, history],
+  )
 
   if (selected)
     return (
@@ -156,6 +165,8 @@ export function OrdersPage() {
         ) : (
           <OrderHistory orders={history} products={allProducts} />
         )
+      ) : historyLoading ? (
+        <div className="mt-8 text-center text-[13px] text-ink-3">Chargement…</div>
       ) : <><div className="mt-2 flex flex-col gap-2">
         {dueSuppliers.map((s) => {
           const meta = orderMeta(s)
@@ -183,6 +194,13 @@ export function OrdersPage() {
           )
         })}
       </div>
+      {dueSuppliers.length === 0 && (
+        <Card className="py-7 text-center">
+          <Check size={24} className="mx-auto mb-2 text-ok" />
+          <div className="text-[14px] font-bold">Toutes les commandes sont passées</div>
+          <div className="mt-1 text-[12px] text-ink-2">Rien d'autre à commander aujourd'hui.</div>
+        </Card>
+      )}
       <p className="mt-4 px-1 text-[11.5px] text-ink-3">
         Quantités calculées pour couvrir jusqu'à la livraison d'après la prochaine (filet +1
         livraison), plafonnées par la place au congélo.
