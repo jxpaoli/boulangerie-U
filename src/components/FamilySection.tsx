@@ -7,19 +7,24 @@ export function FamilySection({
   title,
   count,
   defaultOpen = true,
+  compact = false,
   children,
 }: {
   title: string
   count?: number
   defaultOpen?: boolean
+  compact?: boolean
   children: ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <section className="mt-3">
+    <section className={compact ? 'mt-2' : 'mt-3'}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 rounded-[12px] bg-surface-2 px-3 py-2.5"
+        className={cn(
+          'flex w-full items-center gap-2 rounded-[12px] bg-surface-2 px-3',
+          compact ? 'py-1.5' : 'py-2.5',
+        )}
       >
         <ChevronDown
           size={16}
@@ -34,7 +39,17 @@ export function FamilySection({
           </span>
         )}
       </button>
-      {open && <div className="mt-2 flex flex-col gap-2">{children}</div>}
+      {open && (
+        <div
+          className={cn(
+            compact
+              ? 'mt-1 overflow-hidden rounded-[13px] border border-line/80 bg-surface [&>*+*]:border-t [&>*+*]:border-line'
+              : 'mt-2 flex flex-col gap-2',
+          )}
+        >
+          {children}
+        </div>
+      )}
     </section>
   )
 }
