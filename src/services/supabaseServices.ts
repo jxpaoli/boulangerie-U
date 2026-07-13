@@ -15,6 +15,7 @@ import type {
   SupplierInput,
   CategoryInput,
   CountLine,
+  InventoryRecord,
 } from '@/services/types'
 import type { SupplierCalendar, Weekday } from '@/lib/orderCalendar'
 import { toParisCivil, weekday } from '@/lib/orderCalendar'
@@ -308,14 +309,28 @@ export const supabaseServices: DataServices = {
     async listLines(countId: string): Promise<CountLine[]> {
       const { data, error } = await client()
         .from('stock_count_lines')
-        .select('product_id, counted_units, validated_by, validated_at')
+        .select('product_id, counted_units, theoretical_units, validated_by, validated_at')
         .eq('count_id', countId)
       if (error) throw error
       return (data ?? []).map((r) => ({
         productId: r.product_id as string,
         countedUnits: (r.counted_units as number) ?? 0,
+        theoreticalUnits: (r.theoretical_units as number) ?? null,
         validatedBy: (r.validated_by as string) ?? null,
         validatedAt: (r.validated_at as string) ?? null,
+      }))
+    },
+    async listPast(): Promise<InventoryRecord[]> {
+      const { data, error } = await client()
+        .from('stock_counts')
+        .select('id, validated_at, validated_by')
+        .eq('status', 'validated')
+        .order('validated_at', { ascending: false })
+      if (error) throw error
+      return (data ?? []).map((r) => ({
+        id: r.id as string,
+        validatedAt: (r.validated_at as string) ?? null,
+        validatedBy: (r.validated_by as string) ?? null,
       }))
     },
     async validateLine(countId: string, productId: string, countedUnits: number): Promise<void> {

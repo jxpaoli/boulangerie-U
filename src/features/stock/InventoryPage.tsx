@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { Minus, Plus, Check, ClipboardCheck, FileDown, Printer, Flag } from 'lucide-react'
+import { Minus, Plus, Check, ClipboardCheck, Flag } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
 import { FamilySection } from '@/components/FamilySection'
 import { services, type Product, type CountLine } from '@/services'
-import { useAuth } from '@/features/auth/AuthProvider'
-import { formatDate } from '@/lib/format'
 
 export function InventoryPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { user } = useAuth()
 
   const { data: countId } = useQuery({
     queryKey: ['inventory-open'],
@@ -74,18 +71,6 @@ export function InventoryPage() {
   const groups = useMemo(() => groupByFamily(products), [products])
   const nbValidated = lines.length
 
-  const rows = () =>
-    products.map((p) => {
-      const l = lineOf[p.id]
-      return {
-        name: p.name,
-        theo: p.stockUnits,
-        counted: l ? l.countedUnits : '',
-        gap: l ? l.countedUnits - p.stockUnits : '',
-        by: l?.validatedBy ? (members[l.validatedBy] ?? '') : '',
-      }
-    })
-
   if (finished) {
     return (
       <AppShell eyebrow="Inventaire" title="Inventaire clôturé">
@@ -106,30 +91,15 @@ export function InventoryPage() {
     )
   }
 
-  const canFinish = user?.role === 'responsable'
-
   return (
     <AppShell
       eyebrow="Inventaire"
       title="Comptage en cours"
       subtitle={`${nbValidated}/${products.length} produits validés`}
     >
-      <div className="mt-1 flex gap-2">
-        <button
-          onClick={() => exportCSV(rows())}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] bg-surface-2 py-2.5 text-[13px] font-bold text-ink-2"
-        >
-          <FileDown size={16} /> Excel (CSV)
-        </button>
-        <button
-          onClick={() => printPDF(rows())}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] bg-surface-2 py-2.5 text-[13px] font-bold text-ink-2"
-        >
-          <Printer size={16} /> PDF
-        </button>
-      </div>
-      <p className="mt-2 px-1 text-[11px] text-ink-3">
-        À plusieurs : chaque validation apparaît en direct sur tous les écrans.
+      <p className="mt-1 px-1 text-[11.5px] text-ink-3">
+        À plusieurs : chaque validation apparaît en direct sur tous les écrans. L'export se fait
+        dans Paramètres → Historique des inventaires, une fois clôturé.
       </p>
 
       {groups.map((g) => (
@@ -203,66 +173,19 @@ export function InventoryPage() {
       ))}
 
       <div className="mt-5">
-        {canFinish ? (
-          <Button
-            className="w-full"
-            onClick={() => {
-              if (confirm(`Clôturer l'inventaire ? Le stock sera recalé sur le comptage.`))
-                finish.mutate()
-            }}
-            disabled={finish.isPending}
-          >
-            <Flag size={18} /> Terminer l'inventaire ({nbValidated})
-          </Button>
-        ) : (
-          <p className="text-center text-[12px] text-ink-3">
-            La clôture de l'inventaire est réservée au responsable.
-          </p>
-        )}
+        <Button
+          className="w-full"
+          onClick={() => {
+            if (confirm(`Clôturer l'inventaire ? Le stock sera recalé sur le comptage.`))
+              finish.mutate()
+          }}
+          disabled={finish.isPending || nbValidated === 0}
+        >
+          <Flag size={18} /> Terminer l'inventaire ({nbValidated})
+        </Button>
       </div>
     </AppShell>
   )
-}
-
-/* --------------------------------- helpers -------------------------------- */
-
-type Row = { name: string; theo: number; counted: number | string; gap: number | string; by: string }
-
-function exportCSV(rows: Row[]) {
-  const head = ['Produit', 'Théorique', 'Compté', 'Écart', 'Validé par']
-  const body = rows.map((r) => [r.name, r.theo, r.counted, r.gap, r.by])
-  const csv = [head, ...body]
-    .map((line) => line.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';'))
-    .join('\n')
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `inventaire-${formatDate(new Date()).replace(/\//g, '-')}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-function printPDF(rows: Row[]) {
-  const trs = rows
-    .map(
-      (r) =>
-        `<tr><td>${r.name}</td><td style="text-align:right">${r.theo}</td><td style="text-align:right">${r.counted}</td><td style="text-align:right">${r.gap}</td><td>${r.by}</td></tr>`,
-    )
-    .join('')
-  const html = `<html><head><meta charset="utf-8"><title>Inventaire</title>
-    <style>body{font-family:sans-serif;padding:24px}h1{font-size:18px}
-    table{border-collapse:collapse;width:100%;font-size:12px}
-    th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3ece1}</style>
-    </head><body><h1>Inventaire — ${formatDate(new Date())}</h1>
-    <table><thead><tr><th>Produit</th><th>Théorique</th><th>Compté</th><th>Écart</th><th>Validé par</th></tr></thead>
-    <tbody>${trs}</tbody></table></body></html>`
-  const w = window.open('', '_blank')
-  if (!w) return
-  w.document.write(html)
-  w.document.close()
-  w.focus()
-  w.print()
 }
 
 function groupByFamily(items: Product[]): { family: string; items: Product[] }[] {

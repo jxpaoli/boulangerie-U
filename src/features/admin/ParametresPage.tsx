@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Package, Truck, Layers, ChevronRight, Croissant } from 'lucide-react'
+import { Package, Truck, Layers, ChevronRight, Croissant, ClipboardCheck } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card } from '@/components/ui'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -9,6 +9,12 @@ const ENTRIES = [
   { to: '/parametres/produits', icon: Package, label: 'Produits', sub: 'Catalogue, conso, seuils' },
   { to: '/parametres/fournisseurs', icon: Truck, label: 'Fournisseurs', sub: 'Calendriers de commande' },
   { to: '/parametres/familles', icon: Layers, label: 'Familles', sub: 'Regroupement des produits' },
+  {
+    to: '/parametres/inventaires',
+    icon: ClipboardCheck,
+    label: 'Historique des inventaires',
+    sub: 'Consulter et extraire (Excel / PDF)',
+  },
 ]
 
 export function ParametresPage() {

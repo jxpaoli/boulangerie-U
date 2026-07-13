@@ -11,6 +11,7 @@ import { ParametresPage } from '@/features/admin/ParametresPage'
 import { ProductsAdmin } from '@/features/admin/ProductsAdmin'
 import { SuppliersAdmin } from '@/features/admin/SuppliersAdmin'
 import { CategoriesAdmin } from '@/features/admin/CategoriesAdmin'
+import { InventoryHistory } from '@/features/admin/InventoryHistory'
 
 export default function App() {
   const { user, loading } = useAuth()
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/parametres/produits" element={<ProductsAdmin />} />
       <Route path="/parametres/fournisseurs" element={<SuppliersAdmin />} />
       <Route path="/parametres/familles" element={<CategoriesAdmin />} />
+      <Route path="/parametres/inventaires" element={<InventoryHistory />} />
       <Route path="*" element={<DashboardPage />} />
     </Routes>
   )

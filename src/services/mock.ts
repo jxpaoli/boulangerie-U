@@ -119,6 +119,7 @@ export const mockServices: DataServices = {
     async validateLine(_countId, productId, countedUnits) {
       invLines[productId] = {
         countedUnits,
+        theoreticalUnits: balances[productId] ?? 0,
         validatedBy: 'u-sabrina',
         validatedAt: new Date().toISOString(),
       }
@@ -135,8 +136,13 @@ export const mockServices: DataServices = {
     subscribe() {
       return () => {}
     },
+    async listPast() {
+      return []
+    },
   },
 }
 
-const invLines: Record<string, { countedUnits: number; validatedBy: string; validatedAt: string }> =
-  {}
+const invLines: Record<
+  string,
+  { countedUnits: number; theoreticalUnits: number; validatedBy: string; validatedAt: string }
+> = {}

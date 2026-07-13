@@ -140,8 +140,16 @@ export interface StockService {
 export interface CountLine {
   productId: string
   countedUnits: number
+  theoreticalUnits: number | null
   validatedBy: string | null
   validatedAt: string | null
+}
+
+/** Un inventaire passé (clôturé), pour l'historique. */
+export interface InventoryRecord {
+  id: string
+  validatedAt: string | null
+  validatedBy: string | null
 }
 
 export interface InventoryService {
@@ -155,6 +163,8 @@ export interface InventoryService {
   members(): Promise<Record<string, string>>
   /** synchro temps réel : rappelle onChange à chaque validation ; renvoie un désabonnement */
   subscribe(countId: string, onChange: () => void): () => void
+  /** inventaires passés (clôturés), du plus récent au plus ancien */
+  listPast(): Promise<InventoryRecord[]>
 }
 
 export interface DataServices {
