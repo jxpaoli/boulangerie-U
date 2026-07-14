@@ -13,6 +13,7 @@ export type {
   Product,
   Supplier,
   Prepa,
+  PrepaInput,
   ExitLine,
   CountLine,
   InventoryRecord,

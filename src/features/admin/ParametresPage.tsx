@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Package, Truck, Layers, ChevronRight, Croissant, ClipboardCheck } from 'lucide-react'
+import { Package, Truck, Layers, ChevronRight, CalendarClock, ClipboardCheck } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card } from '@/components/ui'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -14,6 +14,12 @@ const ENTRIES = [
     icon: ClipboardCheck,
     label: 'Historique des inventaires',
     sub: 'Consulter et extraire (Excel / PDF)',
+  },
+  {
+    to: '/parametres/sorties-programmees',
+    icon: CalendarClock,
+    label: 'Sorties programmées',
+    sub: 'Préparations, horaires et quantités',
   },
 ]
 
@@ -46,15 +52,6 @@ export function ParametresPage() {
             <ChevronRight size={18} className="text-ink-3" />
           </Card>
         ))}
-        <Card className="flex items-center gap-3 opacity-60">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-surface-2 text-ink-3">
-            <Croissant size={18} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-semibold">Préparations</div>
-            <div className="text-[11.5px] text-ink-3">Bientôt</div>
-          </div>
-        </Card>
       </div>
       {services.source === 'mock' && (
         <p className="mt-4 px-1 text-[11.5px] text-ink-3">

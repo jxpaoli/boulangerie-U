@@ -12,6 +12,7 @@ import type {
   ReceptionLine,
   Category,
   ProductInput,
+  PrepaInput,
   SupplierInput,
   CategoryInput,
   CountLine,
@@ -195,6 +196,7 @@ export const supabaseServices: DataServices = {
         .from('prep_templates')
         .select('id, name, time_label, prep_template_lines(product_id, default_units)')
         .eq('active', true)
+        .order('time_label')
       if (error) throw error
       return (data ?? []).map((row) => ({
         id: row.id as string,
@@ -386,6 +388,22 @@ export const supabaseServices: DataServices = {
         .from('product_categories')
         .update({ active: false })
         .eq('id', id)
+      if (error) throw error
+    },
+    async savePrepa(prepa: PrepaInput): Promise<void> {
+      const { error } = await client().rpc('save_prep_template', {
+        p_id: prepa.id ?? null,
+        p_name: prepa.name,
+        p_time_label: prepa.time,
+        p_lines: prepa.lines.map((line) => ({
+          product_id: line.productId,
+          default_units: line.units,
+        })),
+      })
+      if (error) throw error
+    },
+    async deletePrepa(id: string): Promise<void> {
+      const { error } = await client().from('prep_templates').update({ active: false }).eq('id', id)
       if (error) throw error
     },
   },

@@ -45,6 +45,14 @@ export interface Prepa {
   lines: PrepaLine[]
 }
 
+export interface PrepaInput {
+  id?: string
+  siteId: string
+  name: string
+  time: string
+  lines: PrepaLine[]
+}
+
 export interface ExitLine {
   productId: string
   units: number
@@ -151,6 +159,8 @@ export interface AdminService {
   deleteSupplier(id: string): Promise<void>
   saveCategory(c: CategoryInput): Promise<void>
   deleteCategory(id: string): Promise<void>
+  savePrepa(prepa: PrepaInput): Promise<void>
+  deletePrepa(id: string): Promise<void>
 }
 
 export interface StockService {

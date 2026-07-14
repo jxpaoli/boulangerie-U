@@ -39,6 +39,7 @@ const mockFavorites = new Set(
     .slice(0, 8)
     .map((product) => product.id),
 )
+const mockPrepas: Prepa[] = demoPrepas.map((prepa) => structuredClone(prepa))
 const mockOrders: PurchaseOrder[] = demoDeliveries.map((d, index) => ({
   id: d.id,
   supplierId: d.supplierId,
@@ -93,7 +94,9 @@ export const mockServices: DataServices = {
       return demoSuppliers.map((s) => ({ ...s }) as Supplier)
     },
     async listPrepas(): Promise<Prepa[]> {
-      return demoPrepas.map((p) => ({ ...p, lines: p.lines.map((l) => ({ ...l })) }))
+      return mockPrepas
+        .map((prepa) => structuredClone(prepa))
+        .sort((a, b) => a.time.localeCompare(b.time))
     },
     async listCategories(): Promise<Category[]> {
       const present = new Set(demoProducts.map((p) => p.category))
@@ -178,6 +181,17 @@ export const mockServices: DataServices = {
     async deleteSupplier() {},
     async saveCategory() {},
     async deleteCategory() {},
+    async savePrepa(prepa) {
+      const id = prepa.id ?? crypto.randomUUID()
+      const next = { id, name: prepa.name, time: prepa.time, lines: structuredClone(prepa.lines) }
+      const index = mockPrepas.findIndex((item) => item.id === id)
+      if (index >= 0) mockPrepas[index] = next
+      else mockPrepas.push(next)
+    },
+    async deletePrepa(id) {
+      const index = mockPrepas.findIndex((item) => item.id === id)
+      if (index >= 0) mockPrepas.splice(index, 1)
+    },
   },
 
   inventory: {
