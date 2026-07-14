@@ -6,7 +6,7 @@ import { AppShell } from '@/components/AppShell'
 import { Card, Button } from '@/components/ui'
 import { services } from '@/services'
 import type { CategoryInput } from '@/services/types'
-import { useAuth } from '@/features/auth/AuthProvider'
+import { useAuth } from '@/features/auth/AuthContext'
 
 export function CategoriesAdmin() {
   const navigate = useNavigate()

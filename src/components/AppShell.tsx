@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useTheme } from '@/lib/theme'
-import { useAuth } from '@/features/auth/AuthProvider'
+import { useAuth } from '@/features/auth/AuthContext'
 
 const NAV = [
   { to: '/', label: 'Accueil', icon: Home, end: true },

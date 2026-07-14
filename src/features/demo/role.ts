@@ -21,8 +21,12 @@ export const useDemoRole = create<RoleState>((set) => ({
 /** Seuil d'écart au-delà duquel un recalage de stock est proposé (voir §8). */
 export const RECALIBRATION_THRESHOLD = 0.2 // 20 %
 
-export function isSignificantGap(seen: number, theoretical: number): boolean {
+export function isSignificantGap(
+  seen: number,
+  theoretical: number,
+  threshold = RECALIBRATION_THRESHOLD,
+): boolean {
   const diff = Math.abs(seen - theoretical)
   if (theoretical <= 0) return diff > 0
-  return diff >= RECALIBRATION_THRESHOLD * theoretical
+  return diff >= threshold * theoretical
 }

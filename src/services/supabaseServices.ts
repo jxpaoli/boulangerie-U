@@ -19,6 +19,8 @@ import type {
   InventoryRecord,
   PurchaseOrder,
   PlaceOrderInput,
+  AppSettings,
+  ExitHistoryEntry,
 } from '@/services/types'
 import type { SupplierCalendar, Weekday } from '@/lib/orderCalendar'
 import { toParisCivil, weekday } from '@/lib/orderCalendar'
@@ -145,7 +147,7 @@ export const supabaseServices: DataServices = {
           .select(
             `id, name, internal_ref, location_id, min_units, max_units, is_favorite,
              category:product_categories(id, name, position),
-             supplier_products(supplier_id, supplier_ref, pack_size, order_unit),
+             supplier_products(supplier_id, supplier_ref, pack_size, order_unit, min_order_packs, order_multiple_packs),
              forecast:forecast_settings(conso_mon,conso_tue,conso_wed,conso_thu,conso_fri,conso_sat,conso_sun)`,
           )
           .eq('active', true),
@@ -172,6 +174,8 @@ export const supabaseServices: DataServices = {
           location: 'Congélateur',
           packSize: (sp?.pack_size as number) ?? 1,
           packLabel: (sp?.order_unit as string) ?? 'carton',
+          minOrderPacks: (sp?.min_order_packs as number) ?? 1,
+          orderMultiplePacks: (sp?.order_multiple_packs as number) ?? 1,
           stockUnits: balances[row.id as string] ?? 0,
           minUnits: (row.min_units as number) ?? 0,
           maxUnits: (row.max_units as number) ?? 0,
@@ -192,16 +196,30 @@ export const supabaseServices: DataServices = {
     },
 
     async listPrepas(): Promise<Prepa[]> {
-      const { data, error } = await client()
-        .from('prep_templates')
-        .select('id, name, time_label, prep_template_lines(product_id, default_units)')
-        .eq('active', true)
-        .order('time_label')
+      const db = client()
+      const since = new Date()
+      since.setHours(0, 0, 0, 0)
+      const [{ data, error }, { data: runs, error: runsError }] = await Promise.all([
+        db
+          .from('prep_templates')
+          .select('id, name, time_label, prep_template_lines(product_id, default_units)')
+          .eq('active', true)
+          .order('time_label'),
+        db.from('prep_runs').select('template_id, run_at').gte('run_at', since.toISOString()),
+      ])
       if (error) throw error
+      if (runsError) throw runsError
+      const lastRuns = new Map<string, string>()
+      for (const run of runs ?? []) {
+        const id = run.template_id as string
+        const at = run.run_at as string
+        if (!lastRuns.has(id) || at > lastRuns.get(id)!) lastRuns.set(id, at)
+      }
       return (data ?? []).map((row) => ({
         id: row.id as string,
         name: row.name as string,
         time: (row.time_label as string) ?? '',
+        lastRunAt: lastRuns.get(row.id as string) ?? null,
         lines: ((row.prep_template_lines as Record<string, unknown>[]) ?? []).map((l) => ({
           productId: l.product_id as string,
           units: l.default_units as number,
@@ -221,6 +239,17 @@ export const supabaseServices: DataServices = {
         name: r.name as string,
         position: (r.position as number) ?? 0,
       }))
+    },
+    async getSettings(): Promise<AppSettings> {
+      const { data, error } = await client()
+        .from('app_settings')
+        .select('safety_deliveries, recalibration_threshold')
+        .single()
+      if (error) throw error
+      return {
+        safetyDeliveries: (data.safety_deliveries as number) ?? 1,
+        recalibrationThreshold: Number(data.recalibration_threshold ?? 0.2),
+      }
     },
   },
 
@@ -261,14 +290,53 @@ export const supabaseServices: DataServices = {
       return out
     },
 
-    async recordExit(batchId, lines: ExitLine[], note, force = false): Promise<void> {
+    async recordExit(batchId, lines: ExitLine[], note, force = false, templateId = null): Promise<void> {
       const { error } = await client().rpc('record_exit', {
         p_batch_id: batchId,
         p_lines: lines.map((l) => ({ product_id: l.productId, units: l.units })),
         p_note: note ?? null,
         p_force: force,
+        p_template_id: templateId,
       })
       if (error) throw error
+    },
+    async listExitHistory(limit = 30): Promise<ExitHistoryEntry[]> {
+      const db = client()
+      const [{ data, error }, { data: profiles, error: profilesError }] = await Promise.all([
+        db
+          .from('stock_movements')
+          .select('prep_batch_id, prep_template_id, product_id, qty_units, note, created_at, created_by, product:products(name)')
+          .eq('type', 'exit')
+          .not('prep_batch_id', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(Math.max(limit * 12, limit)),
+        db.from('profiles').select('id, display_name'),
+      ])
+      if (error) throw error
+      if (profilesError) throw profilesError
+      const names = new Map((profiles ?? []).map((profile) => [profile.id as string, profile.display_name as string]))
+      const grouped = new Map<string, ExitHistoryEntry>()
+      for (const row of data ?? []) {
+        const batchId = row.prep_batch_id as string
+        if (!grouped.has(batchId)) {
+          const actor = row.created_by as string | null
+          grouped.set(batchId, {
+            batchId,
+            createdAt: row.created_at as string,
+            createdBy: actor,
+            createdByName: (actor && names.get(actor)) || 'Utilisateur',
+            note: (row.note as string) ?? '',
+            templateId: (row.prep_template_id as string | null) ?? null,
+            lines: [],
+          })
+        }
+        grouped.get(batchId)!.lines.push({
+          productId: row.product_id as string,
+          productName: (relatedOne(row.product)?.name as string) ?? 'Produit',
+          units: Math.abs(row.qty_units as number),
+        })
+      }
+      return [...grouped.values()].slice(0, limit)
     },
 
     async recordReception(
@@ -323,8 +391,8 @@ export const supabaseServices: DataServices = {
           supplier_ref: p.supplierRef,
           order_unit: 'carton',
           pack_size: p.packSize,
-          min_order_packs: 1,
-          order_multiple_packs: 1,
+          min_order_packs: p.minOrderPacks,
+          order_multiple_packs: p.orderMultiplePacks,
         })
         if (e2) throw e2
       }
@@ -404,6 +472,19 @@ export const supabaseServices: DataServices = {
     },
     async deletePrepa(id: string): Promise<void> {
       const { error } = await client().from('prep_templates').update({ active: false }).eq('id', id)
+      if (error) throw error
+    },
+    async saveSettings(settings: AppSettings): Promise<void> {
+      const { data: profile, error: profileError } = await client()
+        .from('profiles')
+        .select('site_id')
+        .single()
+      if (profileError) throw profileError
+      const { error } = await client().from('app_settings').upsert({
+        site_id: profile.site_id,
+        safety_deliveries: settings.safetyDeliveries,
+        recalibration_threshold: settings.recalibrationThreshold,
+      })
       if (error) throw error
     },
   },

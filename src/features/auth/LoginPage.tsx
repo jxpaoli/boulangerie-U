@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, Boxes, ShieldCheck, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui'
-import { useAuth } from '@/features/auth/AuthProvider'
+import { useAuth } from '@/features/auth/AuthContext'
 import { DEMO_USERS } from '@/features/auth/auth'
 import { dataSource } from '@/lib/supabase'
 

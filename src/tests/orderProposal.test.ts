@@ -79,6 +79,40 @@ describe('computeOrderProposal', () => {
     expect(p.packs).toBe(1)
     expect(p.capped).toBe(true)
   })
+
+  it('déduit une livraison déjà attendue pour éviter une double commande', () => {
+    const withoutExpected = computeOrderProposal(
+      { stockUnits: 20, conso7: flat(10), packSize: 24 },
+      now,
+      d1,
+      cov,
+    )
+    const withExpected = computeOrderProposal(
+      { stockUnits: 20, conso7: flat(10), packSize: 24, expectedBeforeD1: 24 },
+      now,
+      d1,
+      cov,
+    )
+    expect(withoutExpected.packs).toBe(2)
+    expect(withExpected.packs).toBe(1)
+  })
+
+  it('applique le minimum et le multiple fournisseur à la proposition finale', () => {
+    const p = computeOrderProposal(
+      {
+        stockUnits: 20,
+        conso7: flat(10),
+        packSize: 24,
+        minOrderPacks: 2,
+        orderMultiplePacks: 2,
+      },
+      now,
+      d1,
+      cov,
+    )
+    expect(p.packs).toBe(2)
+    expect(p.units).toBe(48)
+  })
 })
 
 describe('coverageEnd (marge +1 livraison)', () => {

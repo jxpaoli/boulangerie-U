@@ -7,7 +7,7 @@ import { Button } from '@/components/ui'
 import { FamilySection } from '@/components/FamilySection'
 import { services, type Product } from '@/services'
 import type { ProductInput } from '@/services/types'
-import { useAuth } from '@/features/auth/AuthProvider'
+import { useAuth } from '@/features/auth/AuthContext'
 import { WEEKDAYS_SHORT } from '@/lib/format'
 
 type Draft = ProductInput
@@ -22,6 +22,8 @@ function emptyDraft(siteId: string): Draft {
     supplierId: null,
     supplierRef: '',
     packSize: 1,
+    minOrderPacks: 1,
+    orderMultiplePacks: 1,
     conso: [0, 0, 0, 0, 0, 0, 0],
   }
 }
@@ -170,6 +172,8 @@ function toDraft(p: Product, siteId: string): Draft {
     supplierId: p.supplierId || null,
     supplierRef: p.ref,
     packSize: p.packSize,
+    minOrderPacks: p.minOrderPacks,
+    orderMultiplePacks: p.orderMultiplePacks,
     conso: [...p.conso],
   }
 }
@@ -253,6 +257,19 @@ function ProductForm({
           </Field>
           <NumField label="Carton (u.)" value={draft.packSize} onChange={(v) => set('packSize', v)} />
           <NumField label="Place max" value={draft.maxUnits} onChange={(v) => set('maxUnits', v)} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <NumField
+            label="Minimum (cartons)"
+            value={draft.minOrderPacks}
+            onChange={(v) => set('minOrderPacks', Math.max(1, v))}
+          />
+          <NumField
+            label="Multiple de commande"
+            value={draft.orderMultiplePacks}
+            onChange={(v) => set('orderMultiplePacks', Math.max(1, v))}
+          />
         </div>
 
         <NumField label="Stock mini (u.)" value={draft.minUnits} onChange={(v) => set('minUnits', v)} />

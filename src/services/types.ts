@@ -26,6 +26,8 @@ export interface Product {
   location: string
   packSize: number
   packLabel: string
+  minOrderPacks: number
+  orderMultiplePacks: number
   stockUnits: number
   minUnits: number
   maxUnits: number
@@ -43,6 +45,28 @@ export interface Prepa {
   name: string
   time: string
   lines: PrepaLine[]
+  lastRunAt?: string | null
+}
+
+export interface AppSettings {
+  safetyDeliveries: number
+  recalibrationThreshold: number
+}
+
+export interface ExitHistoryLine {
+  productId: string
+  productName: string
+  units: number
+}
+
+export interface ExitHistoryEntry {
+  batchId: string
+  createdAt: string
+  createdBy: string | null
+  createdByName: string
+  note: string
+  templateId: string | null
+  lines: ExitHistoryLine[]
 }
 
 export interface PrepaInput {
@@ -115,6 +139,7 @@ export interface CatalogService {
   listSuppliers(): Promise<Supplier[]>
   listPrepas(): Promise<Prepa[]>
   listCategories(): Promise<Category[]>
+  getSettings(): Promise<AppSettings>
 }
 
 /* -------- Administration (config) : responsable uniquement (RLS) -------- */
@@ -129,6 +154,8 @@ export interface ProductInput {
   supplierId: string | null
   supplierRef: string
   packSize: number
+  minOrderPacks: number
+  orderMultiplePacks: number
   conso: number[] // 7 jours (0=lundi)
 }
 
@@ -161,6 +188,7 @@ export interface AdminService {
   deleteCategory(id: string): Promise<void>
   savePrepa(prepa: PrepaInput): Promise<void>
   deletePrepa(id: string): Promise<void>
+  saveSettings(settings: AppSettings): Promise<void>
 }
 
 export interface StockService {
@@ -171,7 +199,14 @@ export interface StockService {
    * @param batchId  clé d'idempotence (générée côté client)
    * @param force    forcer un stock négatif (responsable uniquement)
    */
-  recordExit(batchId: string, lines: ExitLine[], note?: string, force?: boolean): Promise<void>
+  recordExit(
+    batchId: string,
+    lines: ExitLine[],
+    note?: string,
+    force?: boolean,
+    templateId?: string | null,
+  ): Promise<void>
+  listExitHistory(limit?: number): Promise<ExitHistoryEntry[]>
   /** Réception : seul l'accepté entre en stock. Idempotent via idempotencyKey. */
   recordReception(
     idempotencyKey: string,

@@ -60,8 +60,8 @@ casse). Pas de caisse, pas de suivi des produits cuits, pas de chiffre d'affaire
    veut), **à plusieurs en temps réel** (une validation apparaît sur tous les écrans). À la
    clôture, le stock est recalé (écarts tracés). Les inventaires clôturés sont **archivés** et
    **exportables** (Excel / PDF) depuis Paramètres.
-6. **Paramètres** (responsable) : produits, fournisseurs (calendriers), familles, historique des
-   inventaires.
+6. **Paramètres** (responsable) : produits, fournisseurs (calendriers), familles, sorties
+   programmées, réglage du filet et historique des inventaires.
 
 **Rôles.** `responsable` (tous droits + config) et `vendeuse` (tout le cycle quotidien).
 Les actions sensibles (recalage de stock hors inventaire) passent en **proposition → validation**.
@@ -97,7 +97,7 @@ src/
   services/     accès données : interfaces + adaptateurs mock / supabase
 ```
 
-**Le « cerveau » est en pur TypeScript, testé** (35 tests) : le calcul des dates
+**Le « cerveau » est en pur TypeScript, testé** (43 tests) : le calcul des dates
 commande→livraison (jours de commande, heure limite, jours ouvrés/calendaires, report week-end)
 et le calcul de la commande proposée (couverture, arrondi, plafond, alerte rupture). Indépendant
 de l'affichage et de la base.
@@ -172,7 +172,6 @@ navigateur. La clé secrète (`sb_secret_…`) n'apparaît **jamais** dans le co
 fournisseurs / familles), la connexion par service + rôles, l'inventaire collaboratif temps réel
 + export, branché sur la vraie base Supabase et **en ligne** sur Cloudflare.
 
-**Pistes suivantes** : flux commande→réception entièrement persisté (les commandes envoyées
-apparaissent en réception), alertes du tableau de bord, exports CSV généraux, déploiement
-automatique (CI), domaine personnalisé, et — plus tard — apprentissage automatique de la conso à
-partir de l'historique des sorties, lots/DLC, produits de remplacement.
+**Pistes suivantes (hors V1)** : jours fériés et fermetures automatiques, domaine personnalisé,
+apprentissage automatique de la consommation à partir de l'historique des sorties, lots/DLC et
+produits de remplacement.

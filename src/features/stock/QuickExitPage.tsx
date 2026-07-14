@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Save,
   Star,
+  Clock3,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
@@ -18,15 +19,7 @@ import { FamilySection } from '@/components/FamilySection'
 import { services, type Product, type Prepa, type ExitLine } from '@/services'
 import { formatPacks, formatTime, plural } from '@/lib/format'
 import { cn } from '@/lib/cn'
-
-const CURRENT_USER = 'Sabrina'
-
-interface RecentEntry {
-  id: number
-  title: string
-  subtitle: string
-  meta: string
-}
+import { useAuth } from '@/features/auth/AuthContext'
 
 type Mode = 'standard' | 'new' | 'single'
 const QUICK_QTIES = [1, 2, 5, 10]
@@ -37,6 +30,7 @@ function uuid(): string {
 
 export function QuickExitPage() {
   const qc = useQueryClient()
+  const { user } = useAuth()
   const { data: products = [] } = useQuery({
     queryKey: ['products'],
     queryFn: () => services.catalog.listProducts(),
@@ -45,10 +39,11 @@ export function QuickExitPage() {
     queryKey: ['prepas'],
     queryFn: () => services.catalog.listPrepas(),
   })
-  // prépas créées à la volée (session) en plus des standards
-  const [customPrepas, setCustomPrepas] = useState<Prepa[]>([])
+  const { data: exitHistory = [] } = useQuery({
+    queryKey: ['exit-history'],
+    queryFn: () => services.stock.listExitHistory(12),
+  })
   const [mode, setMode] = useState<Mode>('standard')
-  const [recent, setRecent] = useState<RecentEntry[]>([])
 
   const byId = useMemo(() => {
     const m: Record<string, Product> = {}
@@ -61,12 +56,21 @@ export function QuickExitPage() {
     return s
   }, [products])
 
-  async function doExit(lines: ExitLine[], force = false): Promise<boolean> {
+  async function doExit(
+    lines: ExitLine[],
+    force = false,
+    templateId: string | null = null,
+    note = '',
+  ): Promise<boolean> {
     const clean = lines.filter((l) => l.units > 0)
     if (clean.length === 0) return false
     try {
-      await services.stock.recordExit(uuid(), clean, undefined, force)
-      await qc.invalidateQueries({ queryKey: ['products'] })
+      await services.stock.recordExit(uuid(), clean, note, force, templateId)
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['products'] }),
+        qc.invalidateQueries({ queryKey: ['exit-history'] }),
+        qc.invalidateQueries({ queryKey: ['prepas'] }),
+      ])
       return true
     } catch {
       const names = clean
@@ -76,13 +80,6 @@ export function QuickExitPage() {
       alert(`Stock insuffisant :\n${names}\n\nLa sortie ne peut pas rendre le stock négatif.`)
       return false
     }
-  }
-
-  function pushRecent(title: string, subtitle: string) {
-    const now = new Date()
-    setRecent((r) =>
-      [{ id: now.getTime(), title, subtitle, meta: `${formatTime(now)} · ${CURRENT_USER}` }, ...r].slice(0, 6),
-    )
   }
 
   const shortName = (id: string) => (byId[id]?.name ?? '').split(' ').slice(0, 2).join(' ')
@@ -103,10 +100,10 @@ export function QuickExitPage() {
 
       {mode === 'standard' && (
         <PrepaMode
-          prepas={[...prepas, ...customPrepas]}
+          prepas={prepas}
           byId={byId}
           onExit={doExit}
-          onDone={pushRecent}
+          onDone={() => undefined}
           shortName={shortName}
         />
       )}
@@ -115,30 +112,44 @@ export function QuickExitPage() {
           products={products}
           stock={stock}
           onExit={doExit}
-          onDone={pushRecent}
+          onDone={() => undefined}
           shortName={shortName}
-          onSaveStandard={(p) => setCustomPrepas((c) => [...c, p])}
+          canSaveStandard={user?.role === 'responsable'}
+          onSaveStandard={async (prepa) => {
+            await services.admin.savePrepa({
+              siteId: user?.siteId ?? '',
+              name: prepa.name,
+              time: prepa.time,
+              lines: prepa.lines,
+            })
+            await qc.invalidateQueries({ queryKey: ['prepas'] })
+          }}
         />
       )}
       {mode === 'single' && (
-        <SingleMode products={products} stock={stock} onExit={doExit} onDone={pushRecent} />
+        <SingleMode products={products} stock={stock} onExit={doExit} onDone={() => undefined} />
       )}
 
-      {recent.length > 0 && (
+      {exitHistory.length > 0 && (
         <>
           <div className="mx-1 mt-6 mb-2 text-[11px] font-bold tracking-[0.12em] text-ink-3 uppercase">
-            Dernières sorties
+            Historique des sorties
           </div>
           <div className="flex flex-col gap-1.5">
-            {recent.map((r) => (
-              <div key={r.id} className="rounded-xl bg-surface px-3.5 py-2.5">
+            {exitHistory.map((entry) => (
+              <div key={entry.batchId} className="rounded-xl bg-surface px-3.5 py-2.5">
                 <div className="flex items-baseline justify-between gap-2">
-                  <div className="text-[13.5px] font-semibold">{r.title}</div>
+                  <div className="truncate text-[13.5px] font-semibold">
+                    {entry.note || (entry.templateId ? 'Préparation programmée' : 'Sortie')}
+                  </div>
                   <div className="tabnums flex-shrink-0 text-[11px] font-semibold text-crust-ink">
-                    {r.meta}
+                    <Clock3 size={11} className="inline" /> {formatTime(new Date(entry.createdAt))} ·{' '}
+                    {entry.createdByName}
                   </div>
                 </div>
-                <div className="tabnums text-[11px] text-ink-3">{r.subtitle}</div>
+                <div className="tabnums text-[11px] text-ink-3">
+                  {entry.lines.map((line) => `${line.productName} −${line.units}`).join(' · ')}
+                </div>
               </div>
             ))}
           </div>
@@ -170,6 +181,21 @@ function ModeTab({
   )
 }
 
+function currentTime(): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/Paris',
+  }).format(new Date())
+}
+
+function ranToday(prepa: Prepa): boolean {
+  if (!prepa.lastRunAt) return false
+  const day = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' })
+  return day.format(new Date(prepa.lastRunAt)) === day.format(new Date())
+}
+
 /* -------------------------- Mode prépa standard --------------------------- */
 
 function PrepaMode({
@@ -181,7 +207,12 @@ function PrepaMode({
 }: {
   prepas: Prepa[]
   byId: Record<string, Product>
-  onExit: (lines: ExitLine[]) => Promise<boolean>
+  onExit: (
+    lines: ExitLine[],
+    force?: boolean,
+    templateId?: string | null,
+    note?: string,
+  ) => Promise<boolean>
   onDone: (title: string, subtitle: string) => void
   shortName: (id: string) => string
 }) {
@@ -194,9 +225,14 @@ function PrepaMode({
   }
 
   if (!selected) {
+    const orderedPrepas = [...prepas].sort((a, b) => {
+      const aDone = ranToday(a) ? 1 : 0
+      const bDone = ranToday(b) ? 1 : 0
+      return aDone - bDone || a.time.localeCompare(b.time)
+    })
     return (
       <div className="mt-3 flex flex-col gap-2">
-        {prepas.map((prepa) => (
+        {orderedPrepas.map((prepa) => (
           <Card key={prepa.id} className="flex items-center gap-3" onClick={() => open(prepa)}>
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-crust-ink">
               <Croissant size={20} />
@@ -208,6 +244,13 @@ function PrepaMode({
                 {prepa.lines.length} produits
               </div>
             </div>
+            {ranToday(prepa) ? (
+              <Badge tone="ok">Faite</Badge>
+            ) : prepa.time && prepa.time <= currentTime() ? (
+              <Badge tone="warn">À faire</Badge>
+            ) : (
+              <Badge tone="neutral">Prévue</Badge>
+            )}
             <ChevronRight size={18} className="text-ink-3" />
           </Card>
         ))}
@@ -228,7 +271,7 @@ function PrepaMode({
     const lines = selected!.lines
       .map((l) => ({ productId: l.productId, units: qties[l.productId] ?? 0 }))
       .filter((l) => l.units > 0)
-    if (!(await onExit(lines))) return
+    if (!(await onExit(lines, false, selected!.id, selected!.name))) return
     onDone(selected!.name, lines.map((l) => `${shortName(l.productId)} −${l.units}`).join(' · '))
     setSelected(null)
   }
@@ -275,19 +318,23 @@ function NewLotMode({
   onExit,
   onDone,
   onSaveStandard,
+  canSaveStandard,
   shortName,
 }: {
   products: Product[]
   stock: Record<string, number>
   onExit: (lines: ExitLine[]) => Promise<boolean>
   onDone: (title: string, subtitle: string) => void
-  onSaveStandard: (prepa: Prepa) => void
+  onSaveStandard: (prepa: Prepa) => Promise<void>
+  canSaveStandard: boolean
   shortName: (id: string) => string
 }) {
   const [query, setQuery] = useState('')
   const [lot, setLot] = useState<Record<string, number>>({})
   const [saveOpen, setSaveOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -312,16 +359,24 @@ function NewLotMode({
     setSaveName('')
   }
 
-  function save() {
+  async function save() {
     if (!saveName.trim()) return
-    onSaveStandard({
-      id: `custom-${new Date().getTime()}`,
-      name: saveName.trim(),
-      time: '',
-      lines: chosen.map((p) => ({ productId: p.id, units: lot[p.id] ?? 0 })),
-    })
-    setSaveOpen(false)
-    setSaveName('')
+    setSaving(true)
+    setSaveError('')
+    try {
+      await onSaveStandard({
+        id: '',
+        name: saveName.trim(),
+        time: currentTime(),
+        lines: chosen.map((p) => ({ productId: p.id, units: lot[p.id] ?? 0 })),
+      })
+      setSaveOpen(false)
+      setSaveName('')
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Enregistrement impossible.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -345,7 +400,7 @@ function NewLotMode({
           <Button className="mt-3 w-full" onClick={sortir}>
             <Check size={18} /> Sortir le lot ({chosen.length})
           </Button>
-          {!saveOpen ? (
+          {canSaveStandard && (!saveOpen ? (
             <button
               onClick={() => setSaveOpen(true)}
               className="mt-2 flex w-full items-center justify-center gap-1.5 text-[12px] font-semibold text-ink-2"
@@ -360,11 +415,12 @@ function NewLotMode({
                 placeholder="Nom (ex. « Prépa goûter »)"
                 className="min-w-0 flex-1 rounded-[10px] border border-line bg-surface-2 px-3 py-2 text-[13px]"
               />
-              <Button variant="soft" onClick={save}>
-                OK
+              <Button variant="soft" onClick={save} disabled={saving}>
+                {saving ? '…' : 'OK'}
               </Button>
             </div>
-          )}
+          ))}
+          {saveError && <p className="mt-2 text-[11px] font-semibold text-danger">{saveError}</p>}
         </Card>
       )}
 

@@ -6,7 +6,7 @@ import { AppShell } from '@/components/AppShell'
 import { Button } from '@/components/ui'
 import { services, type Supplier } from '@/services'
 import type { SupplierInput } from '@/services/types'
-import { useAuth } from '@/features/auth/AuthProvider'
+import { useAuth } from '@/features/auth/AuthContext'
 import { WEEKDAYS_SHORT } from '@/lib/format'
 
 type Draft = SupplierInput

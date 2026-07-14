@@ -13,6 +13,7 @@ import {
   RefreshCw,
   History,
   Clock3,
+  FileDown,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card, Badge, Button } from '@/components/ui'
@@ -28,9 +29,7 @@ import { computeOrderProposal, type OrderProposal } from '@/lib/orderProposal'
 import { hasPlacedOrderForCycle } from '@/lib/orderCycle'
 import { formatPacks, formatDayLong, plural, packBreakdown } from '@/lib/format'
 import { isSignificantGap } from '@/features/demo/role'
-import { useAuth } from '@/features/auth/AuthProvider'
-
-const SAFETY_DELIVERIES = 1 // filet « +1 livraison » (réglable plus tard)
+import { useAuth } from '@/features/auth/AuthContext'
 
 // carton entamé : fractions affichées en pièces
 const FRACS = [
@@ -67,11 +66,11 @@ interface OrderMeta {
   cutoff: string
 }
 
-function orderMeta(supplier: Supplier): OrderMeta {
+function orderMeta(supplier: Supplier, safetyDeliveries: number): OrderMeta {
   const nowDate = new Date()
   const now = toParisCivil(nowDate)
   const plan = supplierPlan(supplier.calendar, nowDate)
-  const cov = coverageEnd(supplier.calendar, nowDate, SAFETY_DELIVERIES)
+  const cov = coverageEnd(supplier.calendar, nowDate, safetyDeliveries)
   return {
     now,
     d1: plan.d1,
@@ -82,9 +81,31 @@ function orderMeta(supplier: Supplier): OrderMeta {
   }
 }
 
-function proposalFor(p: Product, stockUnits: number, meta: OrderMeta): OrderProposal {
+function expectedBefore(p: Product, meta: OrderMeta, orders: PurchaseOrder[]): number {
+  const delivery = civilISO(meta.d1)
+  return orders
+    .filter((order) => order.status === 'ordered' && order.coverFrom !== null && order.coverFrom <= delivery)
+    .flatMap((order) => order.lines)
+    .filter((line) => line.productId === p.id)
+    .reduce((sum, line) => sum + line.finalPacks * line.packSize, 0)
+}
+
+function proposalFor(
+  p: Product,
+  stockUnits: number,
+  meta: OrderMeta,
+  orders: PurchaseOrder[],
+): OrderProposal {
   return computeOrderProposal(
-    { stockUnits, conso7: p.conso, packSize: p.packSize, maxStockUnits: p.maxUnits },
+    {
+      stockUnits,
+      conso7: p.conso,
+      packSize: p.packSize,
+      minOrderPacks: p.minOrderPacks,
+      orderMultiplePacks: p.orderMultiplePacks,
+      maxStockUnits: p.maxUnits,
+      expectedBeforeD1: expectedBefore(p, meta, orders),
+    },
     meta.now,
     meta.d1,
     meta.cov,
@@ -92,11 +113,16 @@ function proposalFor(p: Product, stockUnits: number, meta: OrderMeta): OrderProp
 }
 
 /** Produits à proposer pour ce fournisseur (stock théorique). */
-function orderProducts(allProducts: Product[], supplier: Supplier, meta: OrderMeta): Product[] {
+function orderProducts(
+  allProducts: Product[],
+  supplier: Supplier,
+  meta: OrderMeta,
+  orders: PurchaseOrder[],
+): Product[] {
   return allProducts
     .filter((p) => p.supplierId === supplier.id)
     .filter((p) => {
-      const pr = proposalFor(p, p.stockUnits, meta)
+      const pr = proposalFor(p, p.stockUnits, meta, orders)
       return pr.packs > 0 || pr.ruptureBeforeDelivery
     })
 }
@@ -116,15 +142,19 @@ export function OrdersPage() {
     queryKey: ['orders', 'history'],
     queryFn: () => services.orders.listHistory(),
   })
+  const { data: settings = { safetyDeliveries: 1, recalibrationThreshold: 0.2 } } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => services.catalog.getSettings(),
+  })
   const dueSuppliers = useMemo(
     () =>
       suppliers
         .filter((supplier) => supplier.dueToday)
         .filter((supplier) => {
-          const meta = orderMeta(supplier)
+          const meta = orderMeta(supplier, settings.safetyDeliveries)
           return !hasPlacedOrderForCycle(history, supplier.id, civilISO(meta.d1))
         }),
-    [suppliers, history],
+    [suppliers, history, settings.safetyDeliveries],
   )
 
   if (selected)
@@ -132,6 +162,9 @@ export function OrdersPage() {
       <SupplierOrder
         supplier={selected}
         allProducts={allProducts}
+        orders={history}
+        safetyDeliveries={settings.safetyDeliveries}
+        recalibrationThreshold={settings.recalibrationThreshold}
         onBack={() => setSelected(null)}
         onPlaced={() => {
           setSelected(null)
@@ -169,9 +202,11 @@ export function OrdersPage() {
         <div className="mt-8 text-center text-[13px] text-ink-3">Chargement…</div>
       ) : <><div className="mt-2 flex flex-col gap-2">
         {dueSuppliers.map((s) => {
-          const meta = orderMeta(s)
-          const products = orderProducts(allProducts, s, meta)
-          const hasRisk = products.some((p) => proposalFor(p, p.stockUnits, meta).ruptureBeforeDelivery)
+          const meta = orderMeta(s, settings.safetyDeliveries)
+          const products = orderProducts(allProducts, s, meta, history)
+          const hasRisk = products.some((p) =>
+            proposalFor(p, p.stockUnits, meta, history).ruptureBeforeDelivery,
+          )
           return (
             <Card key={s.id} className="flex items-center gap-3" onClick={() => setSelected(s)}>
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-crust-soft text-[16px] font-extrabold text-crust-ink">
@@ -202,8 +237,7 @@ export function OrdersPage() {
         </Card>
       )}
       <p className="mt-4 px-1 text-[11.5px] text-ink-3">
-        Quantités calculées pour couvrir jusqu'à la livraison d'après la prochaine (filet +1
-        livraison), plafonnées par la place au congélo.
+        Le filet prévoit assez de stock au cas où une livraison serait manquée ou incomplète.
       </p>
       </>}
     </AppShell>
@@ -264,18 +298,27 @@ function OrderHistory({ orders, products }: { orders: PurchaseOrder[]; products:
 function SupplierOrder({
   supplier,
   allProducts,
+  orders,
+  safetyDeliveries,
+  recalibrationThreshold,
   onBack,
   onPlaced,
 }: {
   supplier: Supplier
   allProducts: Product[]
+  orders: PurchaseOrder[]
+  safetyDeliveries: number
+  recalibrationThreshold: number
   onBack: () => void
   onPlaced: () => void
 }) {
-  const meta = useMemo(() => orderMeta(supplier), [supplier])
+  const meta = useMemo(
+    () => orderMeta(supplier, safetyDeliveries),
+    [supplier, safetyDeliveries],
+  )
   const products = useMemo(
-    () => orderProducts(allProducts, supplier, meta),
-    [allProducts, supplier, meta],
+    () => orderProducts(allProducts, supplier, meta, orders),
+    [allProducts, supplier, meta, orders],
   )
 
   const [checks, setChecks] = useState<Record<string, VisualCheck | undefined>>({})
@@ -291,7 +334,7 @@ function SupplierOrder({
   function packsFor(p: Product): number {
     const ov = overrides[p.id]
     if (ov !== undefined) return ov
-    return proposalFor(p, effectiveStock(p), meta).packs
+    return proposalFor(p, effectiveStock(p), meta, orders).packs
   }
 
   const nbChecked = products.filter((p) => checks[p.id]).length
@@ -306,6 +349,7 @@ function SupplierOrder({
         packsFor={packsFor}
         notes={notes}
         checks={checks}
+        orders={orders}
         onBack={() => setSent(false)}
         onPlaced={onPlaced}
       />
@@ -342,10 +386,11 @@ function SupplierOrder({
           <OrderLine
             key={p.id}
             product={p}
-            proposal={proposalFor(p, effectiveStock(p), meta)}
+            proposal={proposalFor(p, effectiveStock(p), meta, orders)}
             packs={packsFor(p)}
             check={checks[p.id]}
             note={notes[p.id] ?? ''}
+            recalibrationThreshold={recalibrationThreshold}
             onPacks={(n) => setOverrides((o) => ({ ...o, [p.id]: Math.max(0, n) }))}
             onNote={(t) => setNotes((m) => ({ ...m, [p.id]: t }))}
             onToggleCheck={() =>
@@ -388,6 +433,7 @@ function OrderLine({
   packs,
   check,
   note,
+  recalibrationThreshold,
   onPacks,
   onNote,
   onToggleCheck,
@@ -398,6 +444,7 @@ function OrderLine({
   packs: number
   check: VisualCheck | undefined
   note: string
+  recalibrationThreshold: number
   onPacks: (n: number) => void
   onNote: (t: string) => void
   onToggleCheck: () => void
@@ -521,7 +568,7 @@ function OrderLine({
             })}
           </div>
 
-          {checkedStock !== null && isSignificantGap(checkedStock, p.stockUnits) && (
+          {checkedStock !== null && isSignificantGap(checkedStock, p.stockUnits, recalibrationThreshold) && (
             <div className="mt-3 border-t border-line pt-2.5">
               <div className="flex items-center justify-between text-[11.5px]">
                 <span className="tabnums text-ink-2">
@@ -612,6 +659,7 @@ function ExportView({
   packsFor,
   notes,
   checks,
+  orders,
   onBack,
   onPlaced,
 }: {
@@ -621,6 +669,7 @@ function ExportView({
   packsFor: (p: Product) => number
   notes: Record<string, string>
   checks: Record<string, VisualCheck | undefined>
+  orders: PurchaseOrder[]
   onBack: () => void
   onPlaced: () => void
 }) {
@@ -659,6 +708,20 @@ function ExportView({
     }
   }
 
+  async function downloadPdf() {
+    const { jsPDF } = await import('jspdf')
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(16)
+    pdf.text(`Commande ${supplier.name}`, 15, 18)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(11)
+    const lines = pdf.splitTextToSize(text, 180) as string[]
+    pdf.text(lines, 15, 30)
+    const safeSupplier = supplier.name.toLocaleLowerCase('fr').replace(/[^a-z0-9]+/g, '-')
+    pdf.save(`commande-${safeSupplier}-${civilISO(meta.d1)}.pdf`)
+  }
+
   async function placeOrder() {
     const lines = products
       .filter((p) => packsFor(p) > 0)
@@ -669,8 +732,8 @@ function ExportView({
           : p.stockUnits
         return {
           productId: p.id,
-          proposedPacks: proposalFor(p, p.stockUnits, meta).packs,
-          checkedPacks: check ? proposalFor(p, seenUnits, meta).packs : null,
+          proposedPacks: proposalFor(p, p.stockUnits, meta, orders).packs,
+          checkedPacks: check ? proposalFor(p, seenUnits, meta, orders).packs : null,
           finalPacks: packsFor(p),
           visualCheck: check
             ? { ...check, seenUnits, theoreticalUnits: p.stockUnits }
@@ -723,17 +786,14 @@ function ExportView({
         {text}
       </pre>
 
-      <Button variant="soft" className="mt-3 w-full" onClick={copy}>
-        {copied ? (
-          <>
-            <Check size={18} /> Copié
-          </>
-        ) : (
-          <>
-            <Copy size={18} /> Copier (SMS / e-mail)
-          </>
-        )}
-      </Button>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button variant="soft" onClick={copy}>
+          {copied ? <><Check size={18} /> Copié</> : <><Copy size={18} /> Copier</>}
+        </Button>
+        <Button variant="soft" onClick={downloadPdf}>
+          <FileDown size={18} /> PDF
+        </Button>
+      </div>
 
       <div className="mt-3 grid grid-cols-[1fr_2fr] gap-2">
         <Button variant="ghost" onClick={onBack}>

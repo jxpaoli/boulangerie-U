@@ -20,5 +20,7 @@ export type {
   PurchaseOrder,
   PurchaseOrderLine,
   PlaceOrderInput,
+  AppSettings,
+  ExitHistoryEntry,
   DataServices,
 } from '@/services/types'

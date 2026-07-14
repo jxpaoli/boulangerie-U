@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom'
-import { Package, Truck, Layers, ChevronRight, CalendarClock, ClipboardCheck } from 'lucide-react'
+import { Package, Truck, Layers, ChevronRight, CalendarClock, ClipboardCheck, Calculator } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Card } from '@/components/ui'
-import { useAuth } from '@/features/auth/AuthProvider'
+import { useAuth } from '@/features/auth/AuthContext'
 import { services } from '@/services'
 
 const ENTRIES = [
@@ -20,6 +20,12 @@ const ENTRIES = [
     icon: CalendarClock,
     label: 'Sorties programmées',
     sub: 'Préparations, horaires et quantités',
+  },
+  {
+    to: '/parametres/calcul-commandes',
+    icon: Calculator,
+    label: 'Calcul des commandes',
+    sub: 'Filet de sécurité et couverture',
   },
 ]
 

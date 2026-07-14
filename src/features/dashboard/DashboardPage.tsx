@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, AlertTriangle, ArrowRight, ChevronRight, Sparkles, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowRight, CalendarClock, ChevronRight, Sparkles, Zap } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { services, type Product } from '@/services'
 import { formatDayLong } from '@/lib/format'
@@ -18,6 +18,10 @@ export function DashboardPage() {
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => services.catalog.listSuppliers(),
+  })
+  const { data: prepas = [] } = useQuery({
+    queryKey: ['prepas'],
+    queryFn: () => services.catalog.listPrepas(),
   })
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
     queryKey: ['orders', 'history'],
@@ -41,6 +45,7 @@ export function DashboardPage() {
     ? Math.round(((products.length - atRisk.length) / products.length) * 100)
     : 100
   const families = familyHealth(products)
+  const duePrepas = prepas.filter((prepa) => prepa.time && prepa.time <= currentTime() && !ranToday(prepa.lastRunAt))
 
   return (
     <AppShell compact eyebrow="Shift overview" title="Bonjour." subtitle={cap(formatDayLong(today))}>
@@ -111,7 +116,23 @@ export function DashboardPage() {
       <h2 className="mt-4 mb-1.5 text-[9px] font-black tracking-[.18em] text-ink-3 uppercase">
         Points de vigilance
       </h2>
-      {atRisk.length === 0 ? (
+      {duePrepas.length > 0 ? (
+        <button
+          onClick={() => navigate('/sortie')}
+          className="flex w-full items-center gap-3 rounded-[18px] border border-warn/20 bg-surface px-3 py-2.5 text-left shadow-[0_8px_25px_rgba(30,38,70,.05)]"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-[13px] bg-warn-soft text-warn">
+            <CalendarClock size={16} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12px] font-black">
+              {duePrepas.length} préparation{duePrepas.length > 1 ? 's' : ''} à faire
+            </span>
+            <span className="block truncate text-[9.5px] text-ink-3">{duePrepas[0]?.name}</span>
+          </span>
+          <ChevronRight size={15} className="text-ink-3" />
+        </button>
+      ) : atRisk.length === 0 ? (
         <button
           onClick={() => navigate('/stock')}
           className="flex w-full items-center gap-3 rounded-[18px] border border-line/80 bg-surface px-3 py-2.5 text-left shadow-[0_8px_25px_rgba(30,38,70,.05)]"
@@ -150,6 +171,21 @@ export function DashboardPage() {
       </p>
     </AppShell>
   )
+}
+
+function currentTime(): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/Paris',
+  }).format(new Date())
+}
+
+function ranToday(value?: string | null): boolean {
+  if (!value) return false
+  const day = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' })
+  return day.format(new Date(value)) === day.format(new Date())
 }
 
 function FamilyRing({ value }: { value: number }) {

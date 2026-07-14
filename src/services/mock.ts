@@ -20,6 +20,8 @@ import type {
   CountLine,
   PurchaseOrder,
   PlaceOrderInput,
+  ExitHistoryEntry,
+  AppSettings,
 } from '@/services/types'
 
 function familyPosition(name: string): number {
@@ -33,6 +35,8 @@ const balances: Record<string, number> = Object.fromEntries(
 )
 // idempotence : lots déjà enregistrés
 const seenBatches = new Set<string>()
+const mockExitHistory: ExitHistoryEntry[] = []
+let mockSettings: AppSettings = { safetyDeliveries: 1, recalibrationThreshold: 0.2 }
 const mockFavorites = new Set(
   [...demoProducts]
     .sort((a, b) => b.conso.reduce((sum, n) => sum + n, 0) - a.conso.reduce((sum, n) => sum + n, 0))
@@ -76,6 +80,8 @@ function toProduct(p: (typeof demoProducts)[number]): Product {
     location: p.location,
     packSize: p.packSize,
     packLabel: p.packLabel,
+    minOrderPacks: 1,
+    orderMultiplePacks: 1,
     stockUnits: balances[p.id] ?? 0,
     minUnits: p.minUnits,
     maxUnits: p.maxUnits,
@@ -103,6 +109,9 @@ export const mockServices: DataServices = {
       return (FAMILY_ORDER as readonly string[])
         .filter((f) => present.has(f))
         .map((name) => ({ id: name, name, position: familyPosition(name) }))
+    },
+    async getSettings() {
+      return { ...mockSettings }
     },
   },
   orders: {
@@ -139,7 +148,13 @@ export const mockServices: DataServices = {
     async balances(): Promise<Record<string, number>> {
       return { ...balances }
     },
-    async recordExit(batchId: string, lines: ExitLine[], _note?: string, force = false): Promise<void> {
+    async recordExit(
+      batchId: string,
+      lines: ExitLine[],
+      note = '',
+      force = false,
+      templateId: string | null = null,
+    ): Promise<void> {
       if (seenBatches.has(batchId)) return // idempotent
       const short = lines.filter((l) => l.units > (balances[l.productId] ?? 0))
       if (short.length > 0 && !force) {
@@ -147,6 +162,22 @@ export const mockServices: DataServices = {
       }
       for (const l of lines) balances[l.productId] = (balances[l.productId] ?? 0) - l.units
       seenBatches.add(batchId)
+      mockExitHistory.unshift({
+        batchId,
+        createdAt: new Date().toISOString(),
+        createdBy: 'u-sabrina',
+        createdByName: 'Sabrina',
+        note,
+        templateId,
+        lines: lines.map((line) => ({
+          productId: line.productId,
+          productName: demoProducts.find((product) => product.id === line.productId)?.name ?? 'Produit',
+          units: line.units,
+        })),
+      })
+    },
+    async listExitHistory(limit = 30) {
+      return structuredClone(mockExitHistory.slice(0, limit))
     },
     async recordReception(
       idempotencyKey: string,
@@ -191,6 +222,9 @@ export const mockServices: DataServices = {
     async deletePrepa(id) {
       const index = mockPrepas.findIndex((item) => item.id === id)
       if (index >= 0) mockPrepas.splice(index, 1)
+    },
+    async saveSettings(settings) {
+      mockSettings = { ...settings }
     },
   },
 

@@ -5,7 +5,7 @@ import { CalendarClock, Check, ChevronLeft, Minus, Plus, Search, Star, Trash2 } 
 import { AppShell } from '@/components/AppShell'
 import { FamilySection } from '@/components/FamilySection'
 import { Button } from '@/components/ui'
-import { useAuth } from '@/features/auth/AuthProvider'
+import { useAuth } from '@/features/auth/AuthContext'
 import { services, type Prepa, type PrepaInput, type Product } from '@/services'
 
 interface Draft {
