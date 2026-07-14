@@ -299,7 +299,7 @@ function NewLotMode({
     () => (query.trim() ? [] : favoriteProducts(products)),
     [query, products],
   )
-  const catalogResults = query.trim() ? results : results.filter((product) => !product.isFavorite)
+  const catalogResults = results
 
   const chosen = products.filter((p) => (lot[p.id] ?? 0) > 0)
 
@@ -444,7 +444,7 @@ function SingleMode({
     () => (query.trim() ? [] : favoriteProducts(products)),
     [query, products],
   )
-  const catalogResults = query.trim() ? results : results.filter((product) => !product.isFavorite)
+  const catalogResults = results
 
   const selected = products.find((p) => p.id === selectedId) ?? null
 

@@ -149,7 +149,7 @@ function ScheduledExitForm({
     )
   }, [products, query])
   const favorites = query.trim() ? [] : filtered.filter((product) => product.isFavorite)
-  const remaining = query.trim() ? filtered : filtered.filter((product) => !product.isFavorite)
+  const remaining = filtered
   const valid = draft.name.trim() !== '' && draft.time !== '' && selectedCount > 0
 
   const setUnits = (productId: string, units: number) => {
