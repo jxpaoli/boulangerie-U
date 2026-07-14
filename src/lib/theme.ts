@@ -11,6 +11,12 @@ function apply(theme: Theme) {
   } else {
     root.setAttribute('data-theme', theme)
   }
+  const dark =
+    theme === 'dark' ||
+    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  document
+    .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute('content', dark ? '#080A12' : '#F1F3F9')
 }
 
 export function useTheme() {
@@ -21,6 +27,12 @@ export function useTheme() {
   useEffect(() => {
     apply(theme)
     localStorage.setItem(KEY, theme)
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const syncSystemTheme = () => {
+      if (theme === 'system') apply(theme)
+    }
+    media.addEventListener('change', syncSystemTheme)
+    return () => media.removeEventListener('change', syncSystemTheme)
   }, [theme])
 
   function toggle() {
