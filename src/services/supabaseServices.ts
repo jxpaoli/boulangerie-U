@@ -401,6 +401,7 @@ export const supabaseServices: DataServices = {
         name: p.name,
         min_units: p.minUnits,
         max_units: p.maxUnits,
+        process: p.process,
         active: true,
       })
       if (e1) throw e1
