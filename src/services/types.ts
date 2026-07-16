@@ -5,6 +5,15 @@
  */
 import type { SupplierCalendar } from '@/lib/orderCalendar'
 
+/**
+ * Process d'un produit / d'une liste / d'une sortie :
+ *  - 'pousse'  : mise en chambre de pousse aujourd'hui → à cuire le lendemain
+ *  - 'cuisson' : cuisson directe (congélo → four le jour même)
+ *  - 'deco'    : décongélation / sans cuisson (congélo → vitrine)
+ * Toute sortie décrémente le stock. Une pousse alimente en plus « l'à cuire » du lendemain.
+ */
+export type ExitProcess = 'pousse' | 'cuisson' | 'deco'
+
 export interface Supplier {
   id: string
   name: string
@@ -32,6 +41,8 @@ export interface Product {
   minUnits: number
   maxUnits: number
   isFavorite: boolean
+  /** process de fabrication (pousse / cuisson directe / décongélation) */
+  process: ExitProcess
   /** conso par jour de semaine (0=lundi) */
   conso: number[]
 }
@@ -44,6 +55,8 @@ export interface Prepa {
   id: string
   name: string
   time: string
+  /** process de la liste : n'apparaît que dans l'onglet Sortie correspondant */
+  process: ExitProcess
   lines: PrepaLine[]
   lastRunAt?: string | null
 }
@@ -74,11 +87,19 @@ export interface PrepaInput {
   siteId: string
   name: string
   time: string
+  process: ExitProcess
   lines: PrepaLine[]
 }
 
 export interface ExitLine {
   productId: string
+  units: number
+}
+
+/** Une ligne « à cuire aujourd'hui » = ce qui a été mis en pousse la veille. */
+export interface CuissonLine {
+  productId: string
+  productName: string
   units: number
 }
 
@@ -156,6 +177,7 @@ export interface ProductInput {
   packSize: number
   minOrderPacks: number
   orderMultiplePacks: number
+  process: ExitProcess
   conso: number[] // 7 jours (0=lundi)
 }
 
@@ -205,8 +227,11 @@ export interface StockService {
     note?: string,
     force?: boolean,
     templateId?: string | null,
+    process?: ExitProcess,
   ): Promise<void>
   listExitHistory(limit?: number): Promise<ExitHistoryEntry[]>
+  /** « À cuire aujourd'hui » = les sorties « pousse » de la veille (info pure, hors stock). */
+  listCuissonDuJour(): Promise<CuissonLine[]>
   /** Réception : seul l'accepté entre en stock. Idempotent via idempotencyKey. */
   recordReception(
     idempotencyKey: string,

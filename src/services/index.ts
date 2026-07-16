@@ -15,6 +15,8 @@ export type {
   Prepa,
   PrepaInput,
   ExitLine,
+  ExitProcess,
+  CuissonLine,
   CountLine,
   InventoryRecord,
   PurchaseOrder,

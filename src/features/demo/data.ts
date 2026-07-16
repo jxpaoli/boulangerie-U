@@ -5,6 +5,7 @@
  */
 
 import type { SupplierCalendar } from '@/lib/orderCalendar'
+import type { ExitProcess } from '@/services/types'
 
 export interface DemoSupplier {
   id: string
@@ -28,6 +29,7 @@ export interface DemoProduct {
   stockUnits: number
   minUnits: number
   maxUnits: number
+  process: ExitProcess
   /** conso par jour de semaine (0=lundi) */
   conso: [number, number, number, number, number, number, number]
 }
@@ -87,6 +89,7 @@ export const demoProducts: DemoProduct[] = [
     stockUnits: 100,
     minUnits: 24,
     maxUnits: 144,
+    process: 'cuisson',
     conso: [12, 12, 15, 18, 30, 40, 25],
   },
   {
@@ -101,6 +104,7 @@ export const demoProducts: DemoProduct[] = [
     stockUnits: 46,
     minUnits: 20,
     maxUnits: 80,
+    process: 'cuisson',
     conso: [8, 8, 9, 10, 14, 10, 6],
   },
   {
@@ -115,6 +119,7 @@ export const demoProducts: DemoProduct[] = [
     stockUnits: 5,
     minUnits: 12,
     maxUnits: 30,
+    process: 'deco',
     conso: [4, 4, 5, 6, 10, 12, 8],
   },
   {
@@ -129,6 +134,7 @@ export const demoProducts: DemoProduct[] = [
     stockUnits: 210,
     minUnits: 120,
     maxUnits: 480,
+    process: 'pousse',
     conso: [40, 40, 45, 50, 70, 90, 60],
   },
   {
@@ -143,6 +149,7 @@ export const demoProducts: DemoProduct[] = [
     stockUnits: 28,
     minUnits: 15,
     maxUnits: 45,
+    process: 'cuisson',
     conso: [3, 3, 4, 5, 8, 10, 7],
   },
 ]
@@ -204,17 +211,25 @@ export interface DemoPrepa {
   id: string
   name: string
   time: string
+  process: ExitProcess
   lines: DemoPrepaLine[]
 }
 
 export const demoPrepas: DemoPrepa[] = [
   {
+    id: 'prep-pousse-soir',
+    name: 'Pousse du soir',
+    time: '17:00',
+    process: 'pousse',
+    lines: [{ productId: 'p-croissant', units: 120 }],
+  },
+  {
     id: 'prep-matin',
     name: 'Prépa du matin',
     time: '06:30',
+    process: 'cuisson',
     lines: [
       { productId: 'p-baguette', units: 48 },
-      { productId: 'p-croissant', units: 120 },
       { productId: 'p-cereales', units: 20 },
     ],
   },
@@ -222,10 +237,8 @@ export const demoPrepas: DemoPrepa[] = [
     id: 'prep-midi',
     name: 'Prépa de midi',
     time: '11:00',
-    lines: [
-      { productId: 'p-pizza', units: 12 },
-      { productId: 'p-quiche', units: 15 },
-    ],
+    process: 'cuisson',
+    lines: [{ productId: 'p-quiche', units: 15 }],
   },
 ]
 
