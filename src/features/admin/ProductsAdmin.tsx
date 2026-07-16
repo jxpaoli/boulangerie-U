@@ -9,6 +9,8 @@ import { services, type Product } from '@/services'
 import type { ProductInput } from '@/services/types'
 import { useAuth } from '@/features/auth/AuthContext'
 import { WEEKDAYS_SHORT } from '@/lib/format'
+import { DEFAULT_PROCESS, PROCESS_LABEL } from '@/lib/process'
+import { ProcessPicker } from '@/components/ProcessPicker'
 
 type Draft = ProductInput
 
@@ -24,6 +26,7 @@ function emptyDraft(siteId: string): Draft {
     packSize: 1,
     minOrderPacks: 1,
     orderMultiplePacks: 1,
+    process: DEFAULT_PROCESS,
     conso: [0, 0, 0, 0, 0, 0, 0],
   }
 }
@@ -129,7 +132,8 @@ export function ProductsAdmin() {
               >
                 <div className="truncate text-[13.5px] font-semibold">{p.name}</div>
                 <div className="truncate text-[10px] text-ink-3">
-                  {catName[p.categoryId ?? ''] ?? p.category} · carton de {p.packSize} · réf {p.ref}
+                  {PROCESS_LABEL[p.process]} · {catName[p.categoryId ?? ''] ?? p.category} · carton de{' '}
+                  {p.packSize}
                 </div>
               </button>
               <button
@@ -174,6 +178,7 @@ function toDraft(p: Product, siteId: string): Draft {
     packSize: p.packSize,
     minOrderPacks: p.minOrderPacks,
     orderMultiplePacks: p.orderMultiplePacks,
+    process: p.process,
     conso: [...p.conso],
   }
 }
@@ -214,6 +219,10 @@ function ProductForm({
             onChange={(e) => set('name', e.target.value)}
             className="w-full rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[14px]"
           />
+        </Field>
+
+        <Field label="Process">
+          <ProcessPicker value={draft.process} onChange={(v) => set('process', v)} />
         </Field>
 
         <div className="grid grid-cols-2 gap-2">

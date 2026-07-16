@@ -16,8 +16,16 @@ import {
 import { AppShell } from '@/components/AppShell'
 import { Card, Button, Badge } from '@/components/ui'
 import { FamilySection } from '@/components/FamilySection'
-import { services, type Product, type Prepa, type ExitLine } from '@/services'
+import {
+  services,
+  type Product,
+  type Prepa,
+  type ExitLine,
+  type ExitProcess,
+  type CuissonLine,
+} from '@/services'
 import { formatPacks, formatTime, plural } from '@/lib/format'
+import { PROCESS_ORDER, PROCESS_TAB_LABEL } from '@/lib/process'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/features/auth/AuthContext'
 
@@ -43,6 +51,11 @@ export function QuickExitPage() {
     queryKey: ['exit-history'],
     queryFn: () => services.stock.listExitHistory(12),
   })
+  const { data: cuisson = [] } = useQuery({
+    queryKey: ['cuisson-du-jour'],
+    queryFn: () => services.stock.listCuissonDuJour(),
+  })
+  const [process, setProcess] = useState<ExitProcess>('pousse')
   const [mode, setMode] = useState<Mode>('standard')
 
   const byId = useMemo(() => {
@@ -61,15 +74,17 @@ export function QuickExitPage() {
     force = false,
     templateId: string | null = null,
     note = '',
+    exitProcess: ExitProcess = 'cuisson',
   ): Promise<boolean> {
     const clean = lines.filter((l) => l.units > 0)
     if (clean.length === 0) return false
     try {
-      await services.stock.recordExit(uuid(), clean, note, force, templateId)
+      await services.stock.recordExit(uuid(), clean, note, force, templateId, exitProcess)
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['products'] }),
         qc.invalidateQueries({ queryKey: ['exit-history'] }),
         qc.invalidateQueries({ queryKey: ['prepas'] }),
+        qc.invalidateQueries({ queryKey: ['cuisson-du-jour'] }),
       ])
       return true
     } catch {
@@ -84,34 +99,58 @@ export function QuickExitPage() {
 
   const shortName = (id: string) => (byId[id]?.name ?? '').split(' ').slice(0, 2).join(' ')
 
+  // Chaque onglet ne montre que les produits / listes de son process.
+  const prepasForProcess = prepas.filter((p) => p.process === process)
+  const productsForProcess = products.filter((p) => p.process === process)
+  const exitForProcess = (
+    lines: ExitLine[],
+    force = false,
+    templateId: string | null = null,
+    note = '',
+  ): Promise<boolean> => doExit(lines, force, templateId, note, process)
+
   return (
     <AppShell eyebrow="Congélateur" title="Sortie" subtitle="Enregistre ce qui sort du congélo">
+      {/* Onglets process (niveau 1) */}
       <div className="mt-1 grid grid-cols-3 gap-1 rounded-[14px] bg-surface-2 p-1">
+        {PROCESS_ORDER.map((p) => (
+          <ProcessTab key={p} active={process === p} onClick={() => setProcess(p)}>
+            {PROCESS_TAB_LABEL[p]}
+          </ProcessTab>
+        ))}
+      </div>
+
+      {/* À cuire aujourd'hui (issu des pousses d'hier) — onglet Cuisson uniquement */}
+      {process === 'cuisson' && <ACuireCard lines={cuisson} />}
+
+      {/* Méthode de saisie (niveau 2) */}
+      <div className="mt-2 grid grid-cols-3 gap-1 rounded-[14px] bg-surface-2 p-1">
         <ModeTab active={mode === 'standard'} onClick={() => setMode('standard')}>
-          <Croissant size={15} /> Prépa standard
+          <Croissant size={15} /> Listes
         </ModeTab>
         <ModeTab active={mode === 'new'} onClick={() => setMode('new')}>
-          <Layers size={15} /> Prépa new
+          <Layers size={15} /> Nouvelle
         </ModeTab>
         <ModeTab active={mode === 'single'} onClick={() => setMode('single')}>
-          <PackageMinus size={15} /> Unités
+          <PackageMinus size={15} /> Individuel
         </ModeTab>
       </div>
 
       {mode === 'standard' && (
         <PrepaMode
-          prepas={prepas}
+          prepas={prepasForProcess}
           byId={byId}
-          onExit={doExit}
+          onExit={exitForProcess}
           onDone={() => undefined}
           shortName={shortName}
         />
       )}
       {mode === 'new' && (
         <NewLotMode
-          products={products}
+          products={productsForProcess}
           stock={stock}
-          onExit={doExit}
+          process={process}
+          onExit={exitForProcess}
           onDone={() => undefined}
           shortName={shortName}
           canSaveStandard={user?.role === 'responsable'}
@@ -120,6 +159,7 @@ export function QuickExitPage() {
               siteId: user?.siteId ?? '',
               name: prepa.name,
               time: prepa.time,
+              process: prepa.process,
               lines: prepa.lines,
             })
             await qc.invalidateQueries({ queryKey: ['prepas'] })
@@ -127,7 +167,12 @@ export function QuickExitPage() {
         />
       )}
       {mode === 'single' && (
-        <SingleMode products={products} stock={stock} onExit={doExit} onDone={() => undefined} />
+        <SingleMode
+          products={productsForProcess}
+          stock={stock}
+          onExit={exitForProcess}
+          onDone={() => undefined}
+        />
       )}
 
       {exitHistory.length > 0 && (
@@ -178,6 +223,61 @@ function ModeTab({
     >
       {children}
     </button>
+  )
+}
+
+function ProcessTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'rounded-[11px] px-1 py-2.5 text-center text-[12px] leading-tight font-bold',
+        active ? 'bg-crust text-white' : 'text-ink-2',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** « À cuire aujourd'hui » = ce qui a été mis en pousse hier. Lecture seule, hors stock. */
+function ACuireCard({ lines }: { lines: CuissonLine[] }) {
+  if (lines.length === 0) {
+    return (
+      <Card className="mt-3">
+        <div className="text-[13px] font-bold text-ink-2">À cuire aujourd'hui</div>
+        <p className="mt-1 text-[11.5px] text-ink-3">Rien en attente — aucune mise en pousse hier.</p>
+      </Card>
+    )
+  }
+  const total = lines.reduce((sum, line) => sum + line.units, 0)
+  return (
+    <Card className="mt-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[13px] font-bold text-ink-2">À cuire aujourd'hui</div>
+        <Badge tone="crust">pousse d'hier</Badge>
+      </div>
+      <div className="mt-2 flex flex-col divide-y divide-line">
+        {lines.map((line) => (
+          <div key={line.productId} className="flex items-center justify-between py-2">
+            <div className="min-w-0 truncate text-[13.5px] font-semibold">{line.productName}</div>
+            <div className="tabnums flex-shrink-0 text-[14px] font-extrabold">{line.units}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex items-center justify-between border-t border-dashed border-line pt-2 text-[11px] text-ink-3">
+        <span>Info seule — déjà sorti du stock à la pousse</span>
+        <span className="tabnums font-bold">{total} u.</span>
+      </div>
+    </Card>
   )
 }
 
@@ -315,6 +415,7 @@ function PrepaMode({
 function NewLotMode({
   products,
   stock,
+  process,
   onExit,
   onDone,
   onSaveStandard,
@@ -323,6 +424,7 @@ function NewLotMode({
 }: {
   products: Product[]
   stock: Record<string, number>
+  process: ExitProcess
   onExit: (lines: ExitLine[]) => Promise<boolean>
   onDone: (title: string, subtitle: string) => void
   onSaveStandard: (prepa: Prepa) => Promise<void>
@@ -368,6 +470,7 @@ function NewLotMode({
         id: '',
         name: saveName.trim(),
         time: currentTime(),
+        process,
         lines: chosen.map((p) => ({ productId: p.id, units: lot[p.id] ?? 0 })),
       })
       setSaveOpen(false)

@@ -5,13 +5,16 @@ import { CalendarClock, Check, ChevronLeft, Minus, Plus, Search, Star, Trash2 } 
 import { AppShell } from '@/components/AppShell'
 import { FamilySection } from '@/components/FamilySection'
 import { Button } from '@/components/ui'
+import { ProcessPicker } from '@/components/ProcessPicker'
 import { useAuth } from '@/features/auth/AuthContext'
-import { services, type Prepa, type PrepaInput, type Product } from '@/services'
+import { services, type ExitProcess, type Prepa, type PrepaInput, type Product } from '@/services'
+import { DEFAULT_PROCESS, PROCESS_LABEL } from '@/lib/process'
 
 interface Draft {
   id?: string
   name: string
   time: string
+  process: ExitProcess
   units: Record<string, number>
 }
 
@@ -37,6 +40,7 @@ export function ScheduledExitsAdmin() {
         siteId: user?.siteId ?? '',
         name: value.name.trim(),
         time: value.time,
+        process: value.process,
         lines: Object.entries(value.units)
           .filter(([, units]) => units > 0)
           .map(([productId, units]) => ({ productId, units })),
@@ -74,7 +78,7 @@ export function ScheduledExitsAdmin() {
       subtitle={`${prepas.length} préparation${prepas.length > 1 ? 's' : ''}`}
       action={
         <button
-          onClick={() => setDraft({ name: '', time: '', units: {} })}
+          onClick={() => setDraft({ name: '', time: '', process: DEFAULT_PROCESS, units: {} })}
           className="flex h-9 items-center gap-1 rounded-full bg-crust px-3 text-[13px] font-bold text-white"
         >
           <Plus size={16} /> Nouvelle
@@ -98,7 +102,7 @@ export function ScheduledExitsAdmin() {
             >
               <div className="truncate text-[13.5px] font-semibold">{prepa.name}</div>
               <div className="tabnums text-[10px] text-ink-3">
-                {prepa.time || 'Sans heure'} · {prepa.lines.length} produit{prepa.lines.length > 1 ? 's' : ''}
+                {PROCESS_LABEL[prepa.process]} · {prepa.time || 'Sans heure'} · {prepa.lines.length} produit{prepa.lines.length > 1 ? 's' : ''}
               </div>
             </button>
             <button
@@ -139,15 +143,20 @@ function ScheduledExitForm({
 }) {
   const [query, setQuery] = useState('')
   const selectedCount = Object.values(draft.units).filter((units) => units > 0).length
+  // Une liste ne contient que des produits de son process.
+  const scoped = useMemo(
+    () => products.filter((product) => product.process === draft.process),
+    [products, draft.process],
+  )
   const filtered = useMemo(() => {
     const value = query.trim().toLocaleLowerCase('fr')
-    if (!value) return products
-    return products.filter(
+    if (!value) return scoped
+    return scoped.filter(
       (product) =>
         product.name.toLocaleLowerCase('fr').includes(value) ||
         product.ref.toLocaleLowerCase('fr').includes(value),
     )
-  }, [products, query])
+  }, [scoped, query])
   const favorites = query.trim() ? [] : filtered.filter((product) => product.isFavorite)
   const remaining = filtered
   const valid = draft.name.trim() !== '' && draft.time !== '' && selectedCount > 0
@@ -157,6 +166,16 @@ function ScheduledExitForm({
     if (units <= 0) delete next[productId]
     else next[productId] = units
     onChange({ ...draft, units: next })
+  }
+
+  // Changer de process : on retire les produits qui n'en font plus partie.
+  const changeProcess = (process: ExitProcess) => {
+    const allowed = new Set(products.filter((product) => product.process === process).map((p) => p.id))
+    const units: Record<string, number> = {}
+    for (const [productId, n] of Object.entries(draft.units)) {
+      if (allowed.has(productId)) units[productId] = n
+    }
+    onChange({ ...draft, process, units })
   }
 
   return (
@@ -184,6 +203,11 @@ function ScheduledExitForm({
             className="tabnums h-10 w-full rounded-[10px] border border-line bg-surface px-2 text-center text-[13px]"
           />
         </label>
+      </div>
+
+      <div className="mt-2">
+        <span className="mb-1 block text-[10px] font-bold text-ink-3 uppercase">Process</span>
+        <ProcessPicker value={draft.process} onChange={changeProcess} />
       </div>
 
       <div className="relative mt-2">
@@ -286,6 +310,7 @@ function toDraft(prepa: Prepa): Draft {
     id: prepa.id,
     name: prepa.name,
     time: prepa.time,
+    process: prepa.process,
     units: Object.fromEntries(prepa.lines.map((line) => [line.productId, line.units])),
   }
 }

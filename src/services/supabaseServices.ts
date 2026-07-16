@@ -9,6 +9,7 @@ import type {
   Supplier,
   Prepa,
   ExitLine,
+  CuissonLine,
   ReceptionLine,
   Category,
   ProductInput,
@@ -25,6 +26,7 @@ import type {
 import type { SupplierCalendar, Weekday } from '@/lib/orderCalendar'
 import { toParisCivil, weekday } from '@/lib/orderCalendar'
 import { WEEKDAYS_SHORT } from '@/lib/format'
+import { toProcess } from '@/lib/process'
 
 function client() {
   if (!supabase) throw new Error('Supabase non configuré (voir .env.local)')
@@ -145,7 +147,7 @@ export const supabaseServices: DataServices = {
         db
           .from('products')
           .select(
-            `id, name, internal_ref, location_id, min_units, max_units, is_favorite,
+            `id, name, internal_ref, location_id, min_units, max_units, is_favorite, process,
              category:product_categories(id, name, position),
              supplier_products(supplier_id, supplier_ref, pack_size, order_unit, min_order_packs, order_multiple_packs),
              forecast:forecast_settings(conso_mon,conso_tue,conso_wed,conso_thu,conso_fri,conso_sat,conso_sun)`,
@@ -180,6 +182,7 @@ export const supabaseServices: DataServices = {
           minUnits: (row.min_units as number) ?? 0,
           maxUnits: (row.max_units as number) ?? 0,
           isFavorite: (row.is_favorite as boolean) ?? false,
+          process: toProcess(row.process),
           conso: f
             ? [
                 f.conso_mon ?? 0,
@@ -202,7 +205,7 @@ export const supabaseServices: DataServices = {
       const [{ data, error }, { data: runs, error: runsError }] = await Promise.all([
         db
           .from('prep_templates')
-          .select('id, name, time_label, prep_template_lines(product_id, default_units)')
+          .select('id, name, time_label, process, prep_template_lines(product_id, default_units)')
           .eq('active', true)
           .order('time_label'),
         db.from('prep_runs').select('template_id, run_at').gte('run_at', since.toISOString()),
@@ -219,6 +222,7 @@ export const supabaseServices: DataServices = {
         id: row.id as string,
         name: row.name as string,
         time: (row.time_label as string) ?? '',
+        process: toProcess(row.process),
         lastRunAt: lastRuns.get(row.id as string) ?? null,
         lines: ((row.prep_template_lines as Record<string, unknown>[]) ?? []).map((l) => ({
           productId: l.product_id as string,
@@ -290,13 +294,21 @@ export const supabaseServices: DataServices = {
       return out
     },
 
-    async recordExit(batchId, lines: ExitLine[], note, force = false, templateId = null): Promise<void> {
+    async recordExit(
+      batchId,
+      lines: ExitLine[],
+      note,
+      force = false,
+      templateId = null,
+      process = 'cuisson',
+    ): Promise<void> {
       const { error } = await client().rpc('record_exit', {
         p_batch_id: batchId,
         p_lines: lines.map((l) => ({ product_id: l.productId, units: l.units })),
         p_note: note ?? null,
         p_force: force,
         p_template_id: templateId,
+        p_process: process,
       })
       if (error) throw error
     },
@@ -337,6 +349,16 @@ export const supabaseServices: DataServices = {
         })
       }
       return [...grouped.values()].slice(0, limit)
+    },
+
+    async listCuissonDuJour(): Promise<CuissonLine[]> {
+      const { data, error } = await client().rpc('list_cuisson_du_jour')
+      if (error) throw error
+      return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
+        productId: row.product_id as string,
+        productName: (row.product_name as string) ?? 'Produit',
+        units: (row.units as number) ?? 0,
+      }))
     },
 
     async recordReception(
@@ -467,6 +489,7 @@ export const supabaseServices: DataServices = {
           product_id: line.productId,
           default_units: line.units,
         })),
+        p_process: prepa.process,
       })
       if (error) throw error
     },

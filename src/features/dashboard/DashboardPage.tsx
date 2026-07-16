@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, AlertTriangle, ArrowRight, CalendarClock, ChevronRight, Sparkles, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowRight, CalendarClock, ChevronRight, Croissant, Sparkles, Zap } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { services, type Product } from '@/services'
 import { formatDayLong } from '@/lib/format'
@@ -26,6 +26,10 @@ export function DashboardPage() {
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
     queryKey: ['orders', 'history'],
     queryFn: () => services.orders.listHistory(),
+  })
+  const { data: cuisson = [] } = useQuery({
+    queryKey: ['cuisson-du-jour'],
+    queryFn: () => services.stock.listCuissonDuJour(),
   })
 
   const atRisk = products.filter((product) => product.stockUnits < product.minUnits)
@@ -92,6 +96,32 @@ export function DashboardPage() {
           <ArrowRight size={13} className="flex-shrink-0 text-white/55" />
         </button>
       </section>
+
+      {cuisson.length > 0 && (
+        <>
+          <h2 className="mt-4 mb-1.5 text-[9px] font-black tracking-[.18em] text-ink-3 uppercase">
+            À cuire aujourd'hui
+          </h2>
+          <button
+            onClick={() => navigate('/sortie')}
+            className="flex w-full items-center gap-3 rounded-[18px] border border-line/80 bg-surface px-3 py-2.5 text-left shadow-[0_8px_25px_rgba(30,38,70,.05)]"
+          >
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] bg-crust-soft text-crust-ink">
+              <Croissant size={16} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-black">
+                {cuisson.reduce((sum, line) => sum + line.units, 0)} à cuire ·{' '}
+                {cuisson.length} produit{cuisson.length > 1 ? 's' : ''}
+              </span>
+              <span className="block truncate text-[9.5px] text-ink-3">
+                {cuisson.map((line) => `${line.productName} (${line.units})`).join(' · ')}
+              </span>
+            </span>
+            <ChevronRight size={15} className="flex-shrink-0 text-ink-3" />
+          </button>
+        </>
+      )}
 
       <h2 className="mt-4 mb-1.5 text-[9px] font-black tracking-[.18em] text-ink-3 uppercase">
         Familles

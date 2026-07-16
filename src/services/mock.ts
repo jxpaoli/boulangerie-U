@@ -15,6 +15,8 @@ import type {
   Supplier,
   Prepa,
   ExitLine,
+  ExitProcess,
+  CuissonLine,
   ReceptionLine,
   Category,
   CountLine,
@@ -36,6 +38,16 @@ const balances: Record<string, number> = Object.fromEntries(
 // idempotence : lots déjà enregistrés
 const seenBatches = new Set<string>()
 const mockExitHistory: ExitHistoryEntry[] = []
+
+// Journal des mises en pousse (pour dériver « l'à cuire du lendemain »).
+const dayFmt = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' })
+function civilDay(d: Date): string {
+  return dayFmt.format(d)
+}
+const mockPousseLog: { productId: string; units: number; day: string }[] = [
+  // Démo : une pousse « d'hier » → visible en « à cuire aujourd'hui ».
+  { productId: 'p-croissant', units: 120, day: civilDay(new Date(Date.now() - 86_400_000)) },
+]
 let mockSettings: AppSettings = { safetyDeliveries: 1, recalibrationThreshold: 0.2 }
 const mockFavorites = new Set(
   [...demoProducts]
@@ -86,6 +98,7 @@ function toProduct(p: (typeof demoProducts)[number]): Product {
     minUnits: p.minUnits,
     maxUnits: p.maxUnits,
     isFavorite: mockFavorites.has(p.id),
+    process: p.process,
     conso: p.conso,
   }
 }
@@ -154,6 +167,7 @@ export const mockServices: DataServices = {
       note = '',
       force = false,
       templateId: string | null = null,
+      process: ExitProcess = 'cuisson',
     ): Promise<void> {
       if (seenBatches.has(batchId)) return // idempotent
       const short = lines.filter((l) => l.units > (balances[l.productId] ?? 0))
@@ -162,6 +176,13 @@ export const mockServices: DataServices = {
       }
       for (const l of lines) balances[l.productId] = (balances[l.productId] ?? 0) - l.units
       seenBatches.add(batchId)
+      // Une pousse d'aujourd'hui alimentera l'« à cuire » de demain.
+      if (process === 'pousse') {
+        const today = civilDay(new Date())
+        for (const l of lines) {
+          if (l.units > 0) mockPousseLog.push({ productId: l.productId, units: l.units, day: today })
+        }
+      }
       mockExitHistory.unshift({
         batchId,
         createdAt: new Date().toISOString(),
@@ -178,6 +199,18 @@ export const mockServices: DataServices = {
     },
     async listExitHistory(limit = 30) {
       return structuredClone(mockExitHistory.slice(0, limit))
+    },
+    async listCuissonDuJour(): Promise<CuissonLine[]> {
+      const yesterday = civilDay(new Date(Date.now() - 86_400_000))
+      const agg = new Map<string, number>()
+      for (const entry of mockPousseLog) {
+        if (entry.day === yesterday) agg.set(entry.productId, (agg.get(entry.productId) ?? 0) + entry.units)
+      }
+      return [...agg.entries()].map(([productId, units]) => ({
+        productId,
+        productName: demoProducts.find((p) => p.id === productId)?.name ?? 'Produit',
+        units,
+      }))
     },
     async recordReception(
       idempotencyKey: string,
@@ -214,7 +247,13 @@ export const mockServices: DataServices = {
     async deleteCategory() {},
     async savePrepa(prepa) {
       const id = prepa.id ?? crypto.randomUUID()
-      const next = { id, name: prepa.name, time: prepa.time, lines: structuredClone(prepa.lines) }
+      const next = {
+        id,
+        name: prepa.name,
+        time: prepa.time,
+        process: prepa.process,
+        lines: structuredClone(prepa.lines),
+      }
       const index = mockPrepas.findIndex((item) => item.id === id)
       if (index >= 0) mockPrepas[index] = next
       else mockPrepas.push(next)
